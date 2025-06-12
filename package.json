@@ -2,7 +2,9 @@
   "name": "edge-sync-state",
   "scripts": {
     "dev": "wrangler dev",
-    "start": "tsx watch src/server.ts",
+    "dev:worker": "wrangler dev",
+    "start": "tsx watch src/node/server.ts",
+    "start:node": "tsx watch src/node/server.ts",
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings"
   },

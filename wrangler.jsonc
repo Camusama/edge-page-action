@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "edge-sync-state",
-  "main": "src/worker.ts",
+  "main": "src/worker/index.ts",
   "compatibility_date": "2025-06-12",
   "kv_namespaces": [
     {
