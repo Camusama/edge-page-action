@@ -6,6 +6,13 @@
 
 import type { SSEMessage, ConnectionManager, ConnectionInfo } from '../../shared/types'
 
+// Cloudflare Workers 特有的类型扩展
+declare global {
+  interface ResponseInit {
+    webSocket?: WebSocket
+  }
+}
+
 interface WebSocketConnection {
   chatbotId: string
   websocket: WebSocket
@@ -70,7 +77,7 @@ export class WebSocketConnectionManager implements ConnectionManager {
     return new Response(null, {
       status: 101,
       webSocket: client,
-    })
+    } as ResponseInit & { webSocket: WebSocket })
   }
 
   /**
@@ -312,7 +319,7 @@ export class WebSocketConnectionManager implements ConnectionManager {
   /**
    * 添加连接 (兼容接口 - WebSocket 中通过 handleUpgrade 处理)
    */
-  addConnection(chatbotId: string, response: any): void {
+  addConnection(chatbotId: string, _response: any): void {
     // WebSocket 连接通过 handleUpgrade 方法处理
     // 这个方法保留用于接口兼容性
     console.log(`addConnection called for ${chatbotId} - use handleUpgrade for WebSocket`)

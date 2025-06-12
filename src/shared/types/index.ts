@@ -1,6 +1,51 @@
 // 共享类型定义
 // 这些类型在 Node.js 和 Cloudflare Workers 环境中都会使用
 
+// Cloudflare KV Namespace 类型定义
+export interface KVNamespace {
+  get(
+    key: string,
+    options?: { type?: 'text' | 'json' | 'arrayBuffer' | 'stream' }
+  ): Promise<string | null>
+  get(key: string, type: 'text'): Promise<string | null>
+  get(key: string, type: 'json'): Promise<any>
+  get(key: string, type: 'arrayBuffer'): Promise<ArrayBuffer | null>
+  get(key: string, type: 'stream'): Promise<ReadableStream | null>
+  put(
+    key: string,
+    value: string | ArrayBuffer | ArrayBufferView | ReadableStream,
+    options?: {
+      expirationTtl?: number
+      expiration?: number
+      metadata?: any
+    }
+  ): Promise<void>
+  delete(key: string): Promise<void>
+  list(options?: { limit?: number; prefix?: string; cursor?: string }): Promise<{
+    keys: Array<{ name: string; expiration?: number; metadata?: any }>
+    list_complete: boolean
+    cursor?: string
+  }>
+}
+
+// Cloudflare WebSocketPair 类型定义
+export interface WebSocketPair {
+  0: WebSocket
+  1: WebSocket
+}
+
+// 全局 WebSocketPair 构造函数
+declare global {
+  const WebSocketPair: {
+    new (): WebSocketPair
+  }
+
+  // 扩展 Response 类型以支持 Cloudflare Workers 的 webSocket 属性
+  interface ResponseInit {
+    webSocket?: WebSocket
+  }
+}
+
 // 页面状态接口
 export interface PageState {
   url: string

@@ -1,19 +1,16 @@
 import { BaseStorageAdapter } from './base'
+import type { KVNamespace } from '../../shared/types'
 
 /**
  * Cloudflare KV 存储适配器
- * 
+ *
  * 使用 Cloudflare KV 存储来管理页面状态和缓存数据
  * KV 存储比 Durable Objects 更简单，更适合缓存场景
  */
 export class KVStorageAdapter extends BaseStorageAdapter {
   private kv: KVNamespace
 
-  constructor(
-    kv: KVNamespace,
-    prefix: string = 'edge-sync',
-    ttl: number = 3600
-  ) {
+  constructor(kv: KVNamespace, prefix: string = 'edge-sync', ttl: number = 3600) {
     super(prefix, ttl)
     this.kv = kv
   }
@@ -21,7 +18,7 @@ export class KVStorageAdapter extends BaseStorageAdapter {
   /**
    * 生成带前缀的键名
    */
-  private getKey(key: string): string {
+  private getFullKey(key: string): string {
     return `${this.prefix}:${key}`
   }
 
@@ -29,18 +26,18 @@ export class KVStorageAdapter extends BaseStorageAdapter {
    * 设置数据
    */
   async set(key: string, value: any, ttl?: number): Promise<void> {
-    const fullKey = this.getKey(key)
+    const fullKey = this.getFullKey(key)
     const expirationTtl = ttl || this.ttl
-    
+
     const wrappedValue = {
       data: value,
       timestamp: Date.now(),
-      ttl: expirationTtl
+      ttl: expirationTtl,
     }
 
     // KV 的 expirationTtl 是从现在开始的秒数
     await this.kv.put(fullKey, JSON.stringify(wrappedValue), {
-      expirationTtl
+      expirationTtl,
     })
   }
 
@@ -48,26 +45,26 @@ export class KVStorageAdapter extends BaseStorageAdapter {
    * 获取数据
    */
   async get(key: string): Promise<any> {
-    const fullKey = this.getKey(key)
+    const fullKey = this.getFullKey(key)
     const value = await this.kv.get(fullKey, 'text')
-    
+
     if (value === null) {
       return null
     }
 
     try {
       const wrappedValue = JSON.parse(value)
-      
+
       // 检查是否过期（双重保险）
       if (wrappedValue.timestamp && wrappedValue.ttl) {
-        const expirationTime = wrappedValue.timestamp + (wrappedValue.ttl * 1000)
+        const expirationTime = wrappedValue.timestamp + wrappedValue.ttl * 1000
         if (Date.now() > expirationTime) {
           // 数据已过期，删除并返回 null
           await this.delete(key)
           return null
         }
       }
-      
+
       return wrappedValue.data
     } catch (error) {
       console.error('Error parsing JSON from KV:', error)
@@ -79,7 +76,7 @@ export class KVStorageAdapter extends BaseStorageAdapter {
    * 删除数据
    */
   async delete(key: string): Promise<void> {
-    const fullKey = this.getKey(key)
+    const fullKey = this.getFullKey(key)
     await this.kv.delete(fullKey)
   }
 
@@ -95,7 +92,7 @@ export class KVStorageAdapter extends BaseStorageAdapter {
    * 列出所有键（用于调试）
    */
   async listKeys(prefix?: string): Promise<string[]> {
-    const listPrefix = prefix ? this.getKey(prefix) : this.prefix
+    const listPrefix = prefix ? this.getFullKey(prefix) : this.prefix
     const result = await this.kv.list({ prefix: listPrefix })
     return result.keys.map(key => key.name.replace(`${this.prefix}:`, ''))
   }
@@ -107,7 +104,7 @@ export class KVStorageAdapter extends BaseStorageAdapter {
     try {
       // 获取所有键的列表
       const allKeys = await this.listKeys()
-      
+
       return {
         totalKeys: allKeys.length,
         prefix: this.prefix,
@@ -120,7 +117,7 @@ export class KVStorageAdapter extends BaseStorageAdapter {
         totalKeys: 0,
         prefix: this.prefix,
         ttl: this.ttl,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
   }
@@ -137,9 +134,7 @@ export class KVStorageAdapter extends BaseStorageAdapter {
    * 批量设置数据
    */
   async mset(keyValuePairs: Record<string, any>, ttl?: number): Promise<void> {
-    const promises = Object.entries(keyValuePairs).map(([key, value]) => 
-      this.set(key, value, ttl)
-    )
+    const promises = Object.entries(keyValuePairs).map(([key, value]) => this.set(key, value, ttl))
     await Promise.all(promises)
   }
 
@@ -157,18 +152,18 @@ export class KVStorageAdapter extends BaseStorageAdapter {
    */
   async addActionToQueue(chatbotId: string, action: any): Promise<void> {
     const queueKey = `action_queue:${chatbotId}`
-    const existingQueue = await this.get(queueKey) || []
-    
+    const existingQueue = (await this.get(queueKey)) || []
+
     existingQueue.push({
       ...action,
-      queuedAt: Date.now()
+      queuedAt: Date.now(),
     })
-    
+
     // 限制队列长度，避免无限增长
     if (existingQueue.length > 100) {
       existingQueue.splice(0, existingQueue.length - 100)
     }
-    
+
     await this.set(queueKey, existingQueue, 300) // 5分钟过期
   }
 
@@ -177,12 +172,12 @@ export class KVStorageAdapter extends BaseStorageAdapter {
    */
   async getAndClearActionQueue(chatbotId: string): Promise<any[]> {
     const queueKey = `action_queue:${chatbotId}`
-    const queue = await this.get(queueKey) || []
-    
+    const queue = (await this.get(queueKey)) || []
+
     if (queue.length > 0) {
       await this.delete(queueKey)
     }
-    
+
     return queue
   }
 }
