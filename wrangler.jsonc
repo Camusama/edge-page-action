@@ -6,8 +6,7 @@
   "kv_namespaces": [
     {
       "binding": "EDGE_SYNC_KV",
-      "id": "preview_id",
-      "preview_id": "preview_id"
+      "id": "6130db5f700d441d857f23cb9439a7f3"
     }
   ],
   "vars": {
@@ -46,3 +45,5 @@
   //   "head_sampling_rate": 1
   // }
 }
+
+
