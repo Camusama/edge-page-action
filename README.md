@@ -7,9 +7,10 @@
 - **多环境支持**: 同时支持 Node.js 和 Cloudflare Workers
 - **状态同步**: 基于 chatbotId 的页面状态缓存和同步
 - **实时通信**: HTTP SSE (Server-Sent Events) 连接
-- **存储抽象**: 支持 Redis 和 Cloudflare Durable Objects (未来)
+- **存储抽象**: 支持 Redis 和 Cloudflare Durable Objects
 - **Action 推送**: 向前端推送页面操作指令
 - **类型安全**: 完整的 TypeScript 支持
+- **边缘计算**: Cloudflare Workers 全球分布式部署
 
 ## 📦 安装
 
@@ -20,7 +21,7 @@ npm install
 
 ## ⚙️ 配置
 
-环境变量配置 (`.env` 文件):
+### Node.js 环境配置 (`.env` 文件):
 
 ```env
 CACHE_TYPE=redis
@@ -29,6 +30,30 @@ CACHE_PREFIX=edge-sync
 CACHE_TTL=3600
 PORT=3000
 CORS_ORIGINS=*
+```
+
+### Cloudflare Workers 环境配置 (`wrangler.jsonc`):
+
+```jsonc
+{
+  "name": "edge-sync-state",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-12",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "EDGE_SYNC_DO",
+        "class_name": "EdgeSyncStateDO"
+      }
+    ]
+  },
+  "vars": {
+    "CACHE_TYPE": "durable-objects",
+    "CACHE_PREFIX": "edge-sync",
+    "CACHE_TTL": "3600",
+    "CORS_ORIGINS": "*"
+  }
+}
 ```
 
 ### 环境变量说明
@@ -42,24 +67,37 @@ CORS_ORIGINS=*
 
 ## 🏃‍♂️ 运行
 
-### Node.js 环境
+### Node.js 环境 (使用 Redis)
 
 ```bash
 # 开发模式 (热重载)
-npm run dev:node
+npm run start
 
-# 生产模式
-npm start
+# 确保 Redis 服务器运行
+# redis-server
 ```
 
-### Cloudflare Workers
+### Cloudflare Workers 环境 (使用 Durable Objects)
 
 ```bash
-# 开发模式
+# 本地开发模式
 npm run dev
 
-# 部署
+# 部署到 Cloudflare Workers
 npm run deploy
+
+# 生成类型定义
+npm run cf-typegen
+```
+
+### 测试
+
+```bash
+# 测试 Node.js 模式
+node test-cloudflare-workers.js
+
+# 测试 Cloudflare Workers 模式 (需要先运行 npm run dev)
+# 然后在浏览器中访问 http://localhost:8787
 ```
 
 ## 📡 API 端点
@@ -149,6 +187,8 @@ await fetch(`http://localhost:3000/api/action/${chatbotId}`, {
 │   ├── storage/         # 存储抽象层
 │   │   ├── base.ts      # 基础存储接口
 │   │   ├── redis.ts     # Redis 实现
+│   │   ├── durable-objects.ts    # Durable Objects 适配器
+│   │   ├── durable-object.ts     # Durable Object 类
 │   │   └── factory.ts   # 存储工厂
 │   ├── connection/      # 连接管理
 │   │   └── sse-manager.ts
@@ -161,6 +201,31 @@ await fetch(`http://localhost:3000/api/action/${chatbotId}`, {
 │   ├── config.ts        # 配置管理
 │   ├── index.ts         # Hono 应用入口
 │   └── server.ts        # Node.js 服务器
+```
+
+### 🌐 Cloudflare Durable Objects 实现
+
+#### 特性
+
+- **全球分布式**: 数据自动分布到全球边缘节点
+- **强一致性**: 每个 Durable Object 实例保证数据一致性
+- **自动扩展**: 根据负载自动创建和销毁实例
+- **TTL 支持**: 内置数据过期机制
+- **批量操作**: 支持批量读写操作
+
+#### 存储架构
+
+```
+Cloudflare Workers
+├── EdgeSyncStateDO (Durable Object)
+│   ├── 存储状态数据
+│   ├── TTL 过期管理
+│   ├── 批量操作支持
+│   └── 自动清理机制
+└── DurableObjectsStorageAdapter
+    ├── HTTP 通信层
+    ├── 错误处理
+    └── 类型安全
 ```
 
 ### 🔧 模块化路由设计

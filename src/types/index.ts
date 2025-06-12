@@ -57,6 +57,19 @@ export interface AppConfig {
   corsOrigins: string[]
 }
 
+// Cloudflare 环境绑定
+export interface CloudflareBindings {
+  EDGE_SYNC_DO: DurableObjectNamespace
+}
+
+// Durable Object 存储接口
+export interface DurableObjectStorage {
+  get(key: string): Promise<any>
+  put(key: string, value: any, options?: { expirationTtl?: number }): Promise<void>
+  delete(key: string): Promise<boolean>
+  list(options?: { prefix?: string }): Promise<Map<string, any>>
+}
+
 // API 响应格式
 export interface ApiResponse<T = any> {
   success: boolean

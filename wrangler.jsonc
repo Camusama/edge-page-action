@@ -1,14 +1,33 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "edge-sync-state",
-  "main": "src/index.ts",
-  "compatibility_date": "2025-06-12"
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-06-12",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "EDGE_SYNC_DO",
+        "class_name": "EdgeSyncStateDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": [
+        "EdgeSyncStateDO"
+      ]
+    }
+  ],
+  "vars": {
+    "CACHE_TYPE": "durable-objects",
+    "CACHE_PREFIX": "edge-sync",
+    "CACHE_TTL": "3600",
+    "CORS_ORIGINS": "*"
+  }
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],
-  // "vars": {
-  //   "MY_VAR": "my-variable"
-  // },
   // "kv_namespaces": [
   //   {
   //     "binding": "MY_KV_NAMESPACE",

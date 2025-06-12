@@ -1,47 +1,56 @@
+/**
+ * Cloudflare Workers 专用入口文件
+ *
+ * 这个文件专门为 Cloudflare Workers 环境设计，
+ * 避免导入任何 Node.js 相关的模块
+ */
+
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { loadConfig, isCloudflareWorkers } from './config'
-import { StorageFactory } from './storage/factory'
+import { loadConfig } from './config'
+import { DurableObjectsStorageAdapter } from './storage/durable-objects'
 import { SSEConnectionManager } from './connection/sse-manager'
 import { SyncService } from './services/sync-service'
 import { createApiRoutes } from './routes/api'
 import { createSSERoutes } from './routes/sse'
 import { createAdminRoutes } from './routes/admin'
 import { createOpenAPIRoute } from './routes/openapi'
+import { createStaticRoutesForWorker } from './routes/static-worker'
 import type { CloudflareBindings } from './types'
 
 // 创建 Hono 应用，支持 Cloudflare Workers 类型
 const app = new Hono<{ Bindings: CloudflareBindings }>()
 
+// 设置全局 CORS（在路由定义之前）
+app.use(
+  '*',
+  cors({
+    origin: ['*'], // 默认允许所有源，稍后会根据配置更新
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'Cache-Control'],
+  })
+)
+
 // 初始化存储和服务
-let storage: any
+let storage: DurableObjectsStorageAdapter
 let connectionManager: SSEConnectionManager
 let syncService: SyncService
 let currentConfig: any
 
-async function initializeServices(env?: CloudflareBindings) {
+async function initializeServices(env: CloudflareBindings) {
   try {
     // 根据环境加载配置
     currentConfig = loadConfig(env)
 
-    // 设置 CORS
-    app.use(
-      '*',
-      cors({
-        origin: currentConfig.corsOrigins,
-        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowHeaders: ['Content-Type', 'Authorization', 'Cache-Control'],
-      })
+    // 强制使用 Durable Objects
+    currentConfig.cacheType = 'durable-objects'
+
+    // 创建 Durable Objects 存储适配器
+    storage = new DurableObjectsStorageAdapter(
+      env,
+      currentConfig.cachePrefix,
+      currentConfig.cacheTtl
     )
-
-    // 创建存储适配器
-    storage = await StorageFactory.create(currentConfig, env)
-
-    // 如果是 Redis，需要连接
-    if (storage.connect) {
-      await storage.connect()
-      console.log('Storage connected successfully')
-    }
 
     // 创建连接管理器
     connectionManager = new SSEConnectionManager()
@@ -49,13 +58,12 @@ async function initializeServices(env?: CloudflareBindings) {
     // 创建同步服务
     syncService = new SyncService(storage, connectionManager)
 
-    console.log('All services initialized successfully')
-    console.log(
-      `Running in ${isCloudflareWorkers() ? 'Cloudflare Workers' : 'Node.js'} environment`
-    )
+    console.log('Cloudflare Workers services initialized successfully')
     console.log(`Cache type: ${currentConfig.cacheType}`)
+    console.log(`Cache prefix: ${currentConfig.cachePrefix}`)
+    console.log(`Cache TTL: ${currentConfig.cacheTtl}s`)
   } catch (error) {
-    console.error('Failed to initialize services:', error)
+    console.error('Failed to initialize Cloudflare Workers services:', error)
     throw error
   }
 }
@@ -67,10 +75,10 @@ app.get('/', c => {
     name: 'Edge Sync State Server',
     version: '1.0.0',
     status: 'running',
-    environment: isCloudflareWorkers() ? 'Cloudflare Workers' : 'Node.js',
+    environment: 'Cloudflare Workers',
     timestamp: Date.now(),
     config: {
-      cacheType: config.cacheType,
+      cacheType: 'durable-objects',
       cachePrefix: config.cachePrefix,
       cacheTtl: config.cacheTtl,
     },
@@ -164,9 +172,40 @@ app.use('/openapi/*', async c => {
   return response
 })
 
+// 静态文件路由（测试仪表板）
+app.use('/dashboard/*', async c => {
+  const staticRoutes = createStaticRoutesForWorker()
+
+  // 创建新的请求，去掉 /dashboard 前缀
+  const url = new URL(c.req.url)
+  url.pathname = url.pathname.replace(/^\/dashboard/, '') || '/'
+  const newRequest = new Request(url.toString(), {
+    method: c.req.method,
+    headers: c.req.header(),
+    body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
+  })
+
+  const response = await staticRoutes.fetch(newRequest, c.env || {})
+  return response
+})
+
+// 根路径也提供测试仪表板
+app.get('/test', async c => {
+  const staticRoutes = createStaticRoutesForWorker()
+  // 创建一个指向根路径的请求来获取测试仪表板
+  const url = new URL(c.req.url)
+  url.pathname = '/'
+  const newRequest = new Request(url.toString(), {
+    method: 'GET',
+    headers: c.req.header(),
+  })
+  const response = await staticRoutes.fetch(newRequest, c.env || {})
+  return response
+})
+
 // 错误处理
 app.onError((err, c) => {
-  console.error('Application error:', err)
+  console.error('Cloudflare Workers application error:', err)
   return c.json(
     {
       success: false,
@@ -188,23 +227,6 @@ app.notFound(c => {
     404
   )
 })
-
-// 优雅关闭处理（仅在 Node.js 环境中）
-if (!isCloudflareWorkers()) {
-  process.on('SIGINT', async () => {
-    console.log('Shutting down gracefully...')
-
-    if (connectionManager) {
-      connectionManager.destroy()
-    }
-
-    if (storage && storage.disconnect) {
-      await storage.disconnect()
-    }
-
-    process.exit(0)
-  })
-}
 
 // 导出 Durable Object 类（用于 Cloudflare Workers）
 export { EdgeSyncStateDO } from './storage/durable-object'
