@@ -320,8 +320,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
     <script>
       // 全局变量 - 自动检测当前环境
       const SERVER_URL = window.location.origin
+      const WS_URL = SERVER_URL.replace('http://', 'ws://').replace('https://', 'wss://')
       let CHATBOT_ID = 'dashboard_' + Date.now()
-      let eventSource = null
+      let websocket = null
       let connectionStartTime = null
       let connectionTimer = null
       let autoScroll = true
@@ -464,7 +465,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
         if (result.success && result.data.data) {
           const data = result.data.data
-          document.getElementById('totalConnections').textContent = data.connections?.total || 0
+          // 修复连接数获取逻辑 - SyncService 返回的是 totalConnections 而不是 connections.total
+          const totalConnections = data.connections?.totalConnections || data.connections?.total || 0
+          document.getElementById('totalConnections').textContent = totalConnections
           document.getElementById('serverEnvironment').textContent = data.environment || 'Unknown'
 
           // 获取根路径信息来显示缓存类型
@@ -684,38 +687,42 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         showResponse('actionResponse', result)
       }
 
-      // 连接功能（SSE 在 Cloudflare Workers 中可能有限制）
+      // 连接功能（使用轮询替代 SSE）
+      let pollingInterval = null
+
       function connect() {
-        log('🔌 尝试建立 SSE 连接...', 'info')
-        log('ℹ️ 注意：Cloudflare Workers 对 SSE 的支持可能有限制', 'warning')
+        log('🔌 启动轮询连接...', 'info')
+        log('ℹ️ 使用轮询模式替代 SSE（更适合 Cloudflare Workers）', 'info')
 
-        try {
-          eventSource = new EventSource(\`\${SERVER_URL}/sse/connect/\${CHATBOT_ID}\`)
-
-          eventSource.onopen = () => {
-            log('✅ SSE 连接已建立', 'success')
-            updateConnectionStatus(true)
-          }
-
-          eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data)
-            log(\`📨 收到消息: \${JSON.stringify(data)}\`, 'info')
-          }
-
-          eventSource.onerror = (error) => {
-            log('❌ SSE 连接错误', 'error')
-            updateConnectionStatus(false)
-          }
-        } catch (error) {
-          log(\`❌ SSE 连接失败: \${error.message}\`, 'error')
+        if (pollingInterval) {
+          clearInterval(pollingInterval)
         }
+
+        updateConnectionStatus(true)
+
+        // 每 5 秒轮询一次
+        pollingInterval = setInterval(async () => {
+          try {
+            // 检查是否有新的 Action
+            const result = await apiCall(\`/api/action/\${CHATBOT_ID}/poll\`)
+            if (result.success && result.data && result.data.actions) {
+              result.data.actions.forEach(action => {
+                log(\`📨 收到 Action: \${action.type} - \${JSON.stringify(action.payload)}\`, 'info')
+              })
+            }
+          } catch (error) {
+            log(\`⚠️ 轮询错误: \${error.message}\`, 'warning')
+          }
+        }, 5000)
+
+        log('✅ 轮询连接已启动（每 5 秒检查一次）', 'success')
       }
 
       function disconnect() {
-        if (eventSource) {
-          eventSource.close()
-          eventSource = null
-          log('❌ SSE 连接已断开', 'warning')
+        if (pollingInterval) {
+          clearInterval(pollingInterval)
+          pollingInterval = null
+          log('❌ 轮询连接已停止', 'warning')
           updateConnectionStatus(false)
         }
       }
@@ -723,6 +730,13 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       function testConnection() {
         log('🧪 测试连接...', 'info')
         getHealthCheck()
+
+        // 测试轮询
+        if (pollingInterval) {
+          log('✅ 轮询连接正常运行', 'success')
+        } else {
+          log('❌ 轮询连接未启动', 'error')
+        }
       }
 
       // 工具函数

@@ -211,6 +211,49 @@ export function createApiRoutes(syncService: SyncService, corsOrigins: string[])
     }
   })
 
+  // 轮询 Action（用于 Cloudflare Workers 环境）
+  api.get('/action/:chatbotId/poll', async c => {
+    try {
+      const chatbotId = c.req.param('chatbotId')
+
+      if (!chatbotId) {
+        const response: ApiResponse = {
+          success: false,
+          error: 'ChatBot ID is required',
+          timestamp: Date.now(),
+        }
+        return c.json(response, 400)
+      }
+
+      // 获取待处理的 Actions（这里可以从 Durable Objects 中获取）
+      // 暂时返回空数组，实际实现需要存储待处理的 Actions
+      const actions: any[] = []
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          chatbotId,
+          actions,
+          polled: true,
+          timestamp: Date.now(),
+        },
+        timestamp: Date.now(),
+      }
+
+      return c.json(response)
+    } catch (error) {
+      console.error('Poll actions error:', error)
+
+      const response: ApiResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: Date.now(),
+      }
+
+      return c.json(response, 500)
+    }
+  })
+
   // 获取连接统计
   api.get('/stats', c => {
     const stats = syncService.getConnectionStats()

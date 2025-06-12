@@ -1,11 +1,8 @@
 import type { StorageAdapter, PageState, FrontendAction, SSEMessage } from '../types'
-import type { SSEConnectionManager } from '../connection/sse-manager'
+import type { ConnectionManager } from '../types/connection'
 
 export class SyncService {
-  constructor(
-    private storage: StorageAdapter,
-    private connectionManager: SSEConnectionManager
-  ) {}
+  constructor(private storage: StorageAdapter, private connectionManager: ConnectionManager) {}
 
   // 更新页面状态
   async updatePageState(chatbotId: string, state: PageState): Promise<void> {
@@ -19,7 +16,7 @@ export class SyncService {
 
     // 保存到存储
     await this.storage.setPageState(chatbotId, state)
-    
+
     console.log(`Page state updated for chatbot: ${chatbotId}`)
   }
 
@@ -65,12 +62,12 @@ export class SyncService {
     const message: SSEMessage = {
       type: 'action',
       data: action,
-      timestamp: action.timestamp
+      timestamp: action.timestamp,
     }
 
     // 发送到指定连接
     const sent = this.connectionManager.sendToConnection(chatbotId, message)
-    
+
     if (sent) {
       console.log(`Action pushed to chatbot: ${chatbotId}`, action)
     } else {
@@ -87,7 +84,7 @@ export class SyncService {
     const message: SSEMessage = {
       type: 'action',
       data: action,
-      timestamp: action.timestamp
+      timestamp: action.timestamp,
     }
 
     this.connectionManager.sendToAll(message)
@@ -98,7 +95,7 @@ export class SyncService {
   getConnectionStats() {
     return {
       totalConnections: this.connectionManager.getConnectionCount(),
-      connections: this.connectionManager.getConnectionInfo()
+      connections: this.connectionManager.getConnectionInfo(),
     }
   }
 
@@ -126,7 +123,7 @@ export class SyncService {
       scrollPosition: state.scrollPosition,
       viewport: state.viewport,
       metadata: state.metadata,
-      customData: state.customData
+      customData: state.customData,
     }
   }
 
@@ -145,7 +142,7 @@ export class SyncService {
       type: action.type,
       target: action.target,
       payload: action.payload,
-      timestamp: action.timestamp || Date.now()
+      timestamp: action.timestamp || Date.now(),
     }
   }
 }

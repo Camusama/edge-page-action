@@ -9,10 +9,10 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { loadConfig } from './config'
 import { DurableObjectsStorageAdapter } from './storage/durable-objects'
-import { SSEConnectionManager } from './connection/sse-manager'
+import { WebSocketConnectionManager } from './connection/websocket-manager'
 import { SyncService } from './services/sync-service'
 import { createApiRoutes } from './routes/api'
-import { createSSERoutes } from './routes/sse'
+import { createWebSocketRoutes } from './routes/websocket'
 import { createAdminRoutes } from './routes/admin'
 import { createOpenAPIRoute } from './routes/openapi'
 import { createStaticRoutesForWorker } from './routes/static-worker'
@@ -33,7 +33,7 @@ app.use(
 
 // 初始化存储和服务
 let storage: DurableObjectsStorageAdapter
-let connectionManager: SSEConnectionManager
+let connectionManager: WebSocketConnectionManager
 let syncService: SyncService
 let currentConfig: any
 
@@ -53,7 +53,7 @@ async function initializeServices(env: CloudflareBindings) {
     )
 
     // 创建连接管理器
-    connectionManager = new SSEConnectionManager()
+    connectionManager = new WebSocketConnectionManager()
 
     // 创建同步服务
     syncService = new SyncService(storage, connectionManager)
@@ -114,24 +114,24 @@ app.use('/api/*', async c => {
   return response
 })
 
-// 动态挂载 SSE 路由
-app.use('/sse/*', async c => {
+// 动态挂载 WebSocket 路由
+app.use('/ws/*', async c => {
   if (!connectionManager) {
     await initializeServices(c.env)
   }
   const config = currentConfig || loadConfig(c.env)
-  const sseRoutes = createSSERoutes(connectionManager, config.corsOrigins)
+  const wsRoutes = createWebSocketRoutes(connectionManager, config.corsOrigins)
 
-  // 创建新的请求，去掉 /sse 前缀
+  // 创建新的请求，去掉 /ws 前缀
   const url = new URL(c.req.url)
-  url.pathname = url.pathname.replace(/^\/sse/, '') || '/'
+  url.pathname = url.pathname.replace(/^\/ws/, '') || '/'
   const newRequest = new Request(url.toString(), {
     method: c.req.method,
     headers: c.req.header(),
     body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
   })
 
-  const response = await sseRoutes.fetch(newRequest, c.env || {})
+  const response = await wsRoutes.fetch(newRequest, c.env || {})
   return response
 })
 

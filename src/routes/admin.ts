@@ -2,11 +2,11 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { ApiResponse } from '../types'
 import type { SyncService } from '../services/sync-service'
-import type { SSEConnectionManager } from '../connection/sse-manager'
+import type { ConnectionManager } from '../types/connection'
 
 export function createAdminRoutes(
   syncService: SyncService,
-  connectionManager: SSEConnectionManager,
+  connectionManager: ConnectionManager,
   corsOrigins: string[]
 ) {
   const admin = new Hono()
@@ -66,11 +66,12 @@ export function createAdminRoutes(
       success: true,
       data: {
         total: connections.length,
-        connections: connections.map(conn => ({
+        connections: connections.map((conn: any) => ({
           chatbotId: conn.chatbotId,
           connectedAt: new Date(conn.connectedAt).toISOString(),
-          lastActivity: new Date(conn.lastActivity).toISOString(),
+          lastActivity: new Date(conn.lastActivity || conn.connectedAt).toISOString(),
           duration: Date.now() - conn.connectedAt,
+          type: conn.type || 'unknown',
         })),
       },
       timestamp: Date.now(),

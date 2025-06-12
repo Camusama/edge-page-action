@@ -25,12 +25,12 @@ export class SSEConnectionManager implements ConnectionManager {
 
     this.connections.set(chatbotId, connection)
     console.log(`SSE connection added for chatbot: ${chatbotId}`)
-    
+
     // 发送连接确认消息
     this.sendToConnection(chatbotId, {
       type: 'ping',
       data: { message: 'Connected successfully' },
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
   }
 
@@ -43,7 +43,7 @@ export class SSEConnectionManager implements ConnectionManager {
       } catch (error) {
         console.error('Error closing SSE connection:', error)
       }
-      
+
       this.connections.delete(chatbotId)
       console.log(`SSE connection removed for chatbot: ${chatbotId}`)
     }
@@ -68,11 +68,59 @@ export class SSEConnectionManager implements ConnectionManager {
     }
   }
 
-  sendToAll(message: SSEMessage): void {
+  sendToAll(message: SSEMessage): number {
     const chatbotIds = Array.from(this.connections.keys())
+    let sentCount = 0
     chatbotIds.forEach(chatbotId => {
-      this.sendToConnection(chatbotId, message)
+      if (this.sendToConnection(chatbotId, message)) {
+        sentCount++
+      }
     })
+    return sentCount
+  }
+
+  broadcast(message: SSEMessage, excludeChatbotId?: string): number {
+    const chatbotIds = Array.from(this.connections.keys())
+    let sentCount = 0
+    chatbotIds.forEach(chatbotId => {
+      if (excludeChatbotId && chatbotId === excludeChatbotId) {
+        return
+      }
+      if (this.sendToConnection(chatbotId, message)) {
+        sentCount++
+      }
+    })
+    return sentCount
+  }
+
+  hasConnection(chatbotId: string): boolean {
+    return this.connections.has(chatbotId)
+  }
+
+  getAllChatbotIds(): string[] {
+    return Array.from(this.connections.keys())
+  }
+
+  getStats() {
+    const now = Date.now()
+    const connections = Array.from(this.connections.values())
+
+    return {
+      total: connections.length,
+      chatbotIds: Array.from(this.connections.keys()),
+      averageUptime:
+        connections.length > 0
+          ? Math.round(
+              connections.reduce((sum, conn) => sum + (now - conn.connectedAt), 0) /
+                connections.length /
+                1000
+            )
+          : 0,
+      oldestConnection:
+        connections.length > 0
+          ? Math.round((now - Math.min(...connections.map(conn => conn.connectedAt))) / 1000)
+          : 0,
+    }
   }
 
   getConnectionCount(): number {
@@ -83,13 +131,17 @@ export class SSEConnectionManager implements ConnectionManager {
     return Array.from(this.connections.values()).map(conn => ({
       chatbotId: conn.chatbotId,
       connectedAt: conn.connectedAt,
-      lastActivity: conn.lastActivity
+      lastActivity: conn.lastActivity,
     }))
   }
 
-  private formatSSEMessage(message: SSEMessage): string {
+  formatSSEMessage(message: SSEMessage): string {
     const data = JSON.stringify(message)
     return `data: ${data}\n\n`
+  }
+
+  get heartbeatInterval(): number {
+    return this.heartbeatInterval
   }
 
   private startHeartbeat(): void {
@@ -97,7 +149,7 @@ export class SSEConnectionManager implements ConnectionManager {
       const now = Date.now()
       const heartbeatMessage: SSEMessage = {
         type: 'ping',
-        timestamp: now
+        timestamp: now,
       }
 
       // 发送心跳并检查连接状态
@@ -121,7 +173,7 @@ export class SSEConnectionManager implements ConnectionManager {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
     }
-    
+
     // 关闭所有连接
     const chatbotIds = Array.from(this.connections.keys())
     chatbotIds.forEach(chatbotId => {
