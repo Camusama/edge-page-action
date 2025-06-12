@@ -3,27 +3,15 @@
   "name": "edge-sync-state",
   "main": "src/worker.ts",
   "compatibility_date": "2025-06-12",
-  "compatibility_flags": [
-    "no_handle_cross_request_promise_resolution"
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "EDGE_SYNC_DO",
-        "class_name": "EdgeSyncStateDO"
-      }
-    ]
-  },
-  "migrations": [
+  "kv_namespaces": [
     {
-      "tag": "v1",
-      "new_classes": [
-        "EdgeSyncStateDO"
-      ]
+      "binding": "EDGE_SYNC_KV",
+      "id": "preview_id",
+      "preview_id": "preview_id"
     }
   ],
   "vars": {
-    "CACHE_TYPE": "durable-objects",
+    "CACHE_TYPE": "kv",
     "CACHE_PREFIX": "edge-sync",
     "CACHE_TTL": "3600",
     "CORS_ORIGINS": "*"

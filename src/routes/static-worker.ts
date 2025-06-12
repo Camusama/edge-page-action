@@ -190,7 +190,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
   <body>
     <div class="header">
       <h1>🚀 Edge Sync State 测试仪表板</h1>
-      <p>Cloudflare Workers + Durable Objects 模式 <span class="environment-badge">EDGE COMPUTING</span></p>
+      <p>Cloudflare Workers + KV 存储模式 <span class="environment-badge">EDGE COMPUTING</span></p>
     </div>
 
     <div class="dashboard">
@@ -245,7 +245,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         <div class="button-row">
           <button class="btn" onclick="getHealthCheck()">❤️ 健康检查</button>
           <button class="btn" onclick="getSystemStatus()">📈 系统状态</button>
-          <button class="btn" onclick="testDurableObjects()">🔧 测试 DO</button>
+          <button class="btn" onclick="testKVStorage()">🔧 测试 KV</button>
         </div>
         <div id="systemResponse" class="response-display"></div>
       </div>
@@ -255,15 +255,15 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         <h3 class="card-title">📄 页面状态管理</h3>
         <div class="input-group">
           <label>页面URL:</label>
-          <input type="text" id="pageUrl" value="https://example.com/cloudflare-test" />
+          <input type="text" id="pageUrl" value="https://example.com/cloudflare-kv-test" />
         </div>
         <div class="input-group">
           <label>页面标题:</label>
-          <input type="text" id="pageTitle" value="Cloudflare Workers 测试页面" />
+          <input type="text" id="pageTitle" value="Cloudflare Workers + KV 测试页面" />
         </div>
         <div class="input-group">
           <label>自定义数据 (JSON):</label>
-          <textarea id="customData" rows="3">{"environment": "cloudflare-workers", "storage": "durable-objects", "test": true}</textarea>
+          <textarea id="customData" rows="3">{"environment": "cloudflare-workers", "storage": "kv", "test": true}</textarea>
         </div>
         <div class="button-row">
           <button class="btn success" onclick="updatePageState()">💾 更新状态</button>
@@ -484,20 +484,19 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         showResponse('systemResponse', result)
       }
 
-      // 测试 Durable Objects
-      async function testDurableObjects() {
-        log('🔧 测试 Durable Objects...', 'info')
+      // 测试 KV 存储
+      async function testKVStorage() {
+        log('🔧 测试 KV 存储...', 'info')
 
         // 测试设置和获取数据
-        const testKey = 'test_' + Date.now()
-        const testValue = { message: 'Durable Objects 测试', timestamp: Date.now() }
+        const testValue = { message: 'KV 存储测试', timestamp: Date.now() }
 
         // 设置测试数据
         const setResult = await apiCall(\`/api/state/\${CHATBOT_ID}\`, {
           method: 'POST',
           body: JSON.stringify({
-            url: 'https://test.example.com',
-            title: 'DO 测试',
+            url: 'https://kv-test.example.com',
+            title: 'KV 存储测试',
             timestamp: Date.now(),
             chatbotId: CHATBOT_ID,
             customData: testValue
@@ -505,17 +504,18 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         })
 
         if (setResult.success) {
-          log('✅ Durable Objects 写入测试成功', 'success')
+          log('✅ KV 存储写入测试成功', 'success')
 
           // 读取测试数据
           const getResult = await apiCall(\`/api/state/\${CHATBOT_ID}\`)
           if (getResult.success) {
-            log('✅ Durable Objects 读取测试成功', 'success')
+            log('✅ KV 存储读取测试成功', 'success')
+            log(\`📊 读取的数据: \${JSON.stringify(getResult.data.data?.customData)}\`, 'info')
           } else {
-            log('❌ Durable Objects 读取测试失败', 'error')
+            log('❌ KV 存储读取测试失败', 'error')
           }
         } else {
-          log('❌ Durable Objects 写入测试失败', 'error')
+          log('❌ KV 存储写入测试失败', 'error')
         }
 
         showResponse('systemResponse', setResult)
@@ -587,9 +587,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         if (result.success) {
           log('✅ 页面状态删除成功', 'success')
           // 清空表单
-          document.getElementById('pageUrl').value = 'https://example.com/cloudflare-test'
-          document.getElementById('pageTitle').value = 'Cloudflare Workers 测试页面'
-          document.getElementById('customData').value = '{"environment": "cloudflare-workers", "storage": "durable-objects", "test": true}'
+          document.getElementById('pageUrl').value = 'https://example.com/cloudflare-kv-test'
+          document.getElementById('pageTitle').value = 'Cloudflare Workers + KV 测试页面'
+          document.getElementById('customData').value = '{"environment": "cloudflare-workers", "storage": "kv", "test": true}'
         } else {
           log('❌ 页面状态删除失败', 'error')
         }

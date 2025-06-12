@@ -1,5 +1,5 @@
 import type { StorageAdapter, AppConfig, CloudflareBindings } from '../types'
-import { DurableObjectsStorageAdapter } from './durable-objects'
+import { KVStorageAdapter } from './kv'
 import { isCloudflareWorkers } from '../config'
 
 export class StorageFactory {
@@ -16,11 +16,11 @@ export class StorageFactory {
         const { RedisStorageAdapter } = await import('./redis')
         return new RedisStorageAdapter(config.redisUrl, config.cachePrefix, config.cacheTtl)
 
-      case 'durable-objects':
-        if (!bindings) {
-          throw new Error('Cloudflare bindings are required when using Durable Objects storage')
+      case 'kv':
+        if (!bindings || !bindings.EDGE_SYNC_KV) {
+          throw new Error('Cloudflare KV binding is required when using KV storage')
         }
-        return new DurableObjectsStorageAdapter(bindings, config.cachePrefix, config.cacheTtl)
+        return new KVStorageAdapter(bindings.EDGE_SYNC_KV, config.cachePrefix, config.cacheTtl)
 
       default:
         throw new Error(`Unsupported cache type: ${config.cacheType}`)
@@ -29,7 +29,7 @@ export class StorageFactory {
 }
 
 // 导出存储适配器
-export { DurableObjectsStorageAdapter }
+export { KVStorageAdapter }
 export { BaseStorageAdapter } from './base'
 
 // Redis 适配器仅在 Node.js 环境中可用，通过动态导入使用

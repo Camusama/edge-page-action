@@ -8,7 +8,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { loadConfig } from './config'
-import { DurableObjectsStorageAdapter } from './storage/durable-objects'
+import { KVStorageAdapter } from './storage/kv'
 import { WebSocketConnectionManager } from './connection/websocket-manager'
 import { SyncService } from './services/sync-service'
 import { createApiRoutes } from './routes/api'
@@ -32,7 +32,7 @@ app.use(
 )
 
 // 初始化存储和服务
-let storage: DurableObjectsStorageAdapter
+let storage: KVStorageAdapter
 let connectionManager: WebSocketConnectionManager
 let syncService: SyncService
 let currentConfig: any
@@ -42,12 +42,12 @@ async function initializeServices(env: CloudflareBindings) {
     // 根据环境加载配置
     currentConfig = loadConfig(env)
 
-    // 强制使用 Durable Objects
-    currentConfig.cacheType = 'durable-objects'
+    // 强制使用 KV
+    currentConfig.cacheType = 'kv'
 
-    // 创建 Durable Objects 存储适配器
-    storage = new DurableObjectsStorageAdapter(
-      env,
+    // 创建 KV 存储适配器
+    storage = new KVStorageAdapter(
+      env.EDGE_SYNC_KV,
       currentConfig.cachePrefix,
       currentConfig.cacheTtl
     )
@@ -227,8 +227,5 @@ app.notFound(c => {
     404
   )
 })
-
-// 导出 Durable Object 类（用于 Cloudflare Workers）
-export { EdgeSyncStateDO } from './storage/durable-object'
 
 export default app

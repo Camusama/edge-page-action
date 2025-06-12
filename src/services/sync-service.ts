@@ -145,4 +145,36 @@ export class SyncService {
       timestamp: action.timestamp || Date.now(),
     }
   }
+
+  /**
+   * 获取指定 chatbot 的待处理 Actions（用于轮询）
+   */
+  async getActionsForChatbot(chatbotId: string): Promise<any[]> {
+    try {
+      // 检查存储是否支持 Action 队列
+      if (typeof (this.storage as any).getAndClearActionQueue === 'function') {
+        return await (this.storage as any).getAndClearActionQueue(chatbotId)
+      }
+
+      // 如果不支持，返回空数组
+      return []
+    } catch (error) {
+      console.error('Failed to get actions for chatbot:', error)
+      return []
+    }
+  }
+
+  /**
+   * 为指定 chatbot 添加 Action 到队列（用于轮询）
+   */
+  async addActionForChatbot(chatbotId: string, action: FrontendAction): Promise<void> {
+    try {
+      // 检查存储是否支持 Action 队列
+      if (typeof (this.storage as any).addActionToQueue === 'function') {
+        await (this.storage as any).addActionToQueue(chatbotId, action)
+      }
+    } catch (error) {
+      console.error('Failed to add action for chatbot:', error)
+    }
+  }
 }

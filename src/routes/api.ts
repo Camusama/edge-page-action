@@ -225,9 +225,8 @@ export function createApiRoutes(syncService: SyncService, corsOrigins: string[])
         return c.json(response, 400)
       }
 
-      // 获取待处理的 Actions（这里可以从 Durable Objects 中获取）
-      // 暂时返回空数组，实际实现需要存储待处理的 Actions
-      const actions: any[] = []
+      // 获取待处理的 Actions（从 KV 存储中获取）
+      const actions = await syncService.getActionsForChatbot(chatbotId)
 
       const response: ApiResponse = {
         success: true,

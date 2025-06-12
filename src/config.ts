@@ -2,7 +2,10 @@ import type { AppConfig, CloudflareBindings } from './types'
 
 // 检测是否在 Cloudflare Workers 环境中运行
 function isCloudflareWorkers(): boolean {
-  return typeof globalThis.caches !== 'undefined' && typeof globalThis.WebSocketPair !== 'undefined'
+  return (
+    typeof (globalThis as any).caches !== 'undefined' &&
+    typeof (globalThis as any).WebSocketPair !== 'undefined'
+  )
 }
 
 // 手动加载 .env 文件（仅在 Node.js 环境中）
@@ -18,7 +21,7 @@ function loadEnvFile() {
     const envPath = join(process.cwd(), '.env')
     const envContent = readFileSync(envPath, 'utf8')
 
-    envContent.split('\n').forEach(line => {
+    envContent.split('\n').forEach((line: string) => {
       const trimmedLine = line.trim()
       if (trimmedLine && !trimmedLine.startsWith('#')) {
         const [key, ...valueParts] = trimmedLine.split('=')
@@ -46,9 +49,7 @@ export function loadConfig(env?: any): AppConfig {
   const envSource = env || (isCloudflareWorkers() ? {} : process.env)
 
   const config: AppConfig = {
-    cacheType:
-      (envSource.CACHE_TYPE as 'redis' | 'durable-objects') ||
-      (isCloudflareWorkers() ? 'durable-objects' : 'redis'),
+    cacheType: (envSource.CACHE_TYPE as 'redis' | 'kv') || (isCloudflareWorkers() ? 'kv' : 'redis'),
     redisUrl: envSource.REDIS_URL,
     cachePrefix: envSource.CACHE_PREFIX || 'edge-sync',
     cacheTtl: parseInt(envSource.CACHE_TTL || '3600'),
@@ -67,8 +68,8 @@ function validateConfig(config: AppConfig): void {
     throw new Error('REDIS_URL environment variable is required when using Redis storage')
   }
 
-  if (config.cacheType === 'durable-objects' && !isCloudflareWorkers()) {
-    console.warn('Durable Objects storage is designed for Cloudflare Workers environment')
+  if (config.cacheType === 'kv' && !isCloudflareWorkers()) {
+    console.warn('KV storage is designed for Cloudflare Workers environment')
   }
 
   if (config.cacheTtl < 0) {
