@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { CloudflareBindings } from '../../shared/types'
 
 /**
  * Cloudflare Workers 静态文件服务 - 重构版本
@@ -229,20 +230,20 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
     </div>
 
     <div class="dashboard">
-      <!-- 连接状态卡片 -->
+      <!-- ChatBot ID 管理卡片 -->
       <div class="card">
         <h3 class="card-title">
-          🔗 服务状态
+          🔗 ChatBot ID 管理
           <div class="status-indicator" id="statusIndicator"></div>
         </h3>
         <div class="stats-grid">
           <div class="stat-item">
-            <div class="stat-value" id="serviceStatus">未启动</div>
-            <div class="stat-label">服务状态</div>
+            <div class="stat-value" id="availableIds">0</div>
+            <div class="stat-label">可用 ID 数量</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value" id="serviceTime">0s</div>
-            <div class="stat-label">运行时长</div>
+            <div class="stat-value" id="currentIdType">默认生成</div>
+            <div class="stat-label">当前 ID 类型</div>
           </div>
           <div class="stat-item">
             <div class="stat-value" id="pollingStatus">已禁用</div>
@@ -254,29 +255,28 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           </div>
         </div>
         <div class="input-group">
-          <label>ChatBot ID 管理:</label>
+          <label>从 KV 存储选择 ChatBot ID:</label>
           <div class="flex-row">
             <select id="chatbotIdSelect">
-              <option value="">选择现有的 ChatBot ID</option>
+              <option value="">从 KV 键中选择 ChatBot ID</option>
             </select>
             <button class="btn small" onclick="refreshChatbotIds()">🔄 刷新</button>
           </div>
           <div class="flex-row">
-            <input type="text" id="chatbotIdInput" placeholder="或输入新的 ChatBot ID" />
-            <button class="btn small success" onclick="applyChatbotId()">✅ 应用</button>
+            <input type="text" id="chatbotIdInput" placeholder="或手动输入新的 ChatBot ID" />
+            <button class="btn small success" onclick="applyChatbotId()">✅ 选择</button>
             <button class="btn small warning" onclick="generateRandomId()">🎲 随机</button>
-            <button class="btn small danger" onclick="clearSavedId()">🗑️ 清除</button>
           </div>
           <div class="chatbot-id-info">
-            <strong>当前 ID:</strong> <span id="currentChatbotId" class="chatbot-id-current"></span>
+            <strong>当前选择的 ID:</strong> <span id="currentChatbotId" class="chatbot-id-current"></span>
             <div id="chatbotIdStats" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
           </div>
         </div>
         <div class="button-row">
-          <button class="btn success" onclick="startService()">� 启动服务</button>
-          <button class="btn danger" onclick="stopService()">🛑 停止服务</button>
-          <button class="btn warning" onclick="testService()">🧪 测试服务</button>
-          <button class="btn small" onclick="checkServiceStatus()">🔍 状态</button>
+          <button class="btn success" onclick="selectChatbotId()">✅ 确认选择</button>
+          <button class="btn" onclick="previewChatbotData()">�️ 预览数据</button>
+          <button class="btn warning" onclick="testChatbotConnection()">🧪 测试连接</button>
+          <button class="btn small danger" onclick="clearSavedId()">�️ 清除本地</button>
         </div>
         <div class="button-row">
           <button class="btn warning" onclick="enableActionPolling()">⚡ 启用轮询</button>
@@ -293,31 +293,32 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
       <!-- KV 存储监控卡片 -->
       <div class="card">
-        <h3 class="card-title">�️ KV 存储监控</h3>
+        <h3 class="card-title">🗂️ KV 存储监控</h3>
         <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-value" id="serverHealth">-</div>
-            <div class="stat-label">服务器状态</div>
-          </div>
           <div class="stat-item">
             <div class="stat-value" id="kvKeysCount">0</div>
             <div class="stat-label">KV 键总数</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value" id="serverEnvironment">-</div>
-            <div class="stat-label">运行环境</div>
+            <div class="stat-value" id="kvPrefix">-</div>
+            <div class="stat-label">键前缀</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value" id="cacheType">-</div>
-            <div class="stat-label">存储类型</div>
+            <div class="stat-value" id="kvTtl">-</div>
+            <div class="stat-label">默认 TTL</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="kvLastUpdate">-</div>
+            <div class="stat-label">最后更新</div>
           </div>
         </div>
         <div class="button-row">
-          <button class="btn" onclick="getHealthCheck()">❤️ 健康检查</button>
-          <button class="btn" onclick="getAllKVKeys()">� 获取所有键</button>
+          <button class="btn" onclick="getAllKVKeys()">🗂 获取所有键</button>
+          <button class="btn" onclick="getKVStats()">📊 存储统计</button>
           <button class="btn" onclick="testKVStorage()">🔧 测试 KV</button>
           <button class="btn warning" onclick="clearAllKVData()">🗑️ 清空 KV</button>
         </div>
+        <div id="kvKeysDisplay" class="response-display" style="max-height: 300px; overflow-y: auto;"></div>
         <div id="systemResponse" class="response-display"></div>
       </div>
 
@@ -606,56 +607,41 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       }
 
       async function refreshChatbotIds() {
-        log('🔄 正在获取现有的 ChatBot ID...', 'info')
+    log('🔄 正在从 KV 存储获取所有键...', 'info')
 
-        try {
-          // 获取连接统计信息
-          const result = await apiCall('/admin/connections')
+    try {
+        // 从 KV 存储获取所有键
+        const result = await apiCall('/api/kv/stats')
 
-          if (result.success && result.data.data && result.data.data.connections) {
-            const connections = result.data.data.connections
-            const chatbotIds = connections.map(conn => conn.chatbotId).filter(Boolean)
-
-            // 更新下拉列表
+        if (result.success && result.data.data && result.data.data.keys) {
+            const allKeys = result.data.data.keys
             const selectElement = document.getElementById('chatbotIdSelect')
 
             // 清空现有选项（保留默认选项）
-            selectElement.innerHTML = '<option value="">选择现有的 ChatBot ID</option>'
+            selectElement.innerHTML = '<option value="">选择 KV 存储中的键</option>'
 
-            if (chatbotIds.length > 0) {
-              // 去重并排序
-              const uniqueIds = [...new Set(chatbotIds)].sort()
+            if (allKeys.length > 0) {
+                // 直接显示所有键
+                allKeys.forEach(key => {
+                    const parts = key.split(':')
+                    const lastPart = parts[parts.length - 1]
+                    const option = document.createElement('option')
+                    option.value = lastPart
+                    option.textContent = lastPart
+                    selectElement.appendChild(option)
+                })
 
-              uniqueIds.forEach(id => {
-                const option = document.createElement('option')
-                option.value = id
-                option.textContent = \`\${id} \${id === CHATBOT_ID ? '(当前)' : ''}\`
-                selectElement.appendChild(option)
-              })
-
-              log(\`✅ 找到 \${uniqueIds.length} 个活跃的 ChatBot ID\`, 'success')
+                log(\`✅ 从 KV 存储找到 \${allKeys.length} 个键\`, 'success')
             } else {
-              log('ℹ️ 当前没有活跃的连接', 'info')
+                log('ℹ️ KV 存储中暂无数据', 'info')
             }
-          } else {
-            log('⚠️ 无法获取连接信息', 'warning')
-          }
-
-          // 同时尝试获取 WebSocket 连接信息
-          const wsResult = await apiCall('/ws/connections')
-          if (wsResult.success && wsResult.data.data && wsResult.data.data.connections) {
-            const wsConnections = wsResult.data.data.connections
-            const wsChatbotIds = wsConnections.map(conn => conn.chatbotId).filter(Boolean)
-
-            if (wsChatbotIds.length > 0) {
-              log(\`📡 WebSocket 连接: \${wsChatbotIds.length} 个\`, 'info')
-            }
-          }
-
-        } catch (error) {
-          log(\`❌ 获取 ChatBot ID 失败: \${error.message}\`, 'error')
+        } else {
+            log('⚠️ 无法获取 KV 存储信息', 'warning')
         }
-      }
+    } catch (error) {
+        log(\`❌ 从 KV 存储获取键失败: \${error.message}\`, 'error')
+    }
+}
 
       // 连接管理
       function updateConnectionStatus(connected) {
@@ -854,20 +840,139 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         }
       }
 
-      // 健康检查
-      async function getHealthCheck() {
-        log('🔍 执行健康检查...', 'info')
-        const result = await apiCall('/api/health')
+      // 获取所有 KV 键
+      async function getAllKVKeys() {
+        log('� 获取所有 KV 键...', 'info')
 
-        if (result.success) {
-          document.getElementById('serverHealth').textContent = '正常'
-          log('✅ 服务器健康状态正常', 'success')
-        } else {
-          document.getElementById('serverHealth').textContent = '异常'
-          log('❌ 服务器健康检查失败', 'error')
+        try {
+          const result = await apiCall('/api/kv/stats')
+
+          if (result.success && result.data.data) {
+            const data = result.data.data
+            const keys = data.keys || []
+
+            // 更新统计信息
+            document.getElementById('kvKeysCount').textContent = data.totalKeys || keys.length
+            document.getElementById('kvPrefix').textContent = data.prefix || 'edge-sync'
+            document.getElementById('kvTtl').textContent = data.ttl ? \`\${data.ttl}s\` : '3600s'
+            document.getElementById('kvLastUpdate').textContent = new Date().toLocaleTimeString()
+
+            // 显示键列表
+            const keysDisplay = document.getElementById('kvKeysDisplay')
+            if (keys.length > 0) {
+              let keysHtml = '<strong>KV 键列表:</strong><br>'
+
+              // 按类型分组显示
+              const pageStateKeys = keys.filter(key => key.startsWith('page_state:'))
+              const actionQueueKeys = keys.filter(key => key.startsWith('action_queue:'))
+              const otherKeys = keys.filter(key => !key.startsWith('page_state:') && !key.startsWith('action_queue:'))
+
+              if (pageStateKeys.length > 0) {
+                keysHtml += \`<br><strong>📄 页面状态键 (\${pageStateKeys.length}):</strong><br>\`
+                pageStateKeys.forEach(key => {
+                  const chatbotId = key.replace('page_state:', '')
+                  keysHtml += \`<span style="font-family: monospace; color: #2196f3; margin-left: 10px;">\${key}</span> → ChatBot: <strong>\${chatbotId}</strong><br>\`
+                })
+              }
+
+              if (actionQueueKeys.length > 0) {
+                keysHtml += \`<br><strong>⚡ Action 队列键 (\${actionQueueKeys.length}):</strong><br>\`
+                actionQueueKeys.forEach(key => {
+                  const chatbotId = key.replace('action_queue:', '')
+                  keysHtml += \`<span style="font-family: monospace; color: #ff9800; margin-left: 10px;">\${key}</span> → ChatBot: <strong>\${chatbotId}</strong><br>\`
+                })
+              }
+
+              if (otherKeys.length > 0) {
+                keysHtml += \`<br><strong>🔧 其他键 (\${otherKeys.length}):</strong><br>\`
+                otherKeys.forEach(key => {
+                  keysHtml += \`<span style="font-family: monospace; color: #666; margin-left: 10px;">\${key}</span><br>\`
+                })
+              }
+
+              keysDisplay.innerHTML = keysHtml
+              keysDisplay.style.display = 'block'
+
+              log(\`✅ 获取到 \${keys.length} 个 KV 键\`, 'success')
+            } else {
+              keysDisplay.innerHTML = '<strong>📭 KV 存储为空</strong>'
+              keysDisplay.style.display = 'block'
+              log('📭 KV 存储中没有数据', 'info')
+            }
+          } else {
+            log('❌ 获取 KV 键失败', 'error')
+          }
+
+          showResponse('systemResponse', result)
+        } catch (error) {
+          log(\`❌ 获取 KV 键错误: \${error.message}\`, 'error')
+        }
+      }
+
+      // 获取 KV 存储统计信息
+      async function getKVStats() {
+        log('📊 获取 KV 存储统计信息...', 'info')
+
+        try {
+          const result = await apiCall('/api/kv/stats')
+
+          if (result.success && result.data.data) {
+            const data = result.data.data
+
+            // 更新统计信息显示
+            document.getElementById('kvKeysCount').textContent = data.totalKeys || 0
+            document.getElementById('kvPrefix').textContent = data.prefix || 'edge-sync'
+            document.getElementById('kvTtl').textContent = data.ttl ? \`\${data.ttl}s\` : '3600s'
+            document.getElementById('kvLastUpdate').textContent = new Date().toLocaleTimeString()
+
+            log(\`✅ KV 统计信息获取成功\`, 'success')
+            log(\`📊 总键数: \${data.totalKeys || 0}\`, 'info')
+            log(\`🏷️ 键前缀: \${data.prefix || 'edge-sync'}\`, 'info')
+            log(\`⏰ 默认 TTL: \${data.ttl || 3600}s\`, 'info')
+          } else {
+            log('❌ 获取 KV 统计信息失败', 'error')
+          }
+
+          showResponse('systemResponse', result)
+        } catch (error) {
+          log(\`❌ 获取 KV 统计信息错误: \${error.message}\`, 'error')
+        }
+      }
+
+      // 清空所有 KV 数据
+      async function clearAllKVData() {
+        if (!confirm('⚠️ 确定要清空所有 KV 数据吗？此操作不可恢复！')) {
+          log('❌ 用户取消了清空 KV 数据操作', 'warning')
+          return
         }
 
-        showResponse('systemResponse', result)
+        log('🗑️ 清空所有 KV 数据...', 'warning')
+
+        try {
+          const result = await apiCall('/api/kv/clear', {
+            method: 'DELETE'
+          })
+
+          if (result.success) {
+            // 更新统计信息显示
+            document.getElementById('kvKeysCount').textContent = '0'
+            document.getElementById('kvLastUpdate').textContent = new Date().toLocaleTimeString()
+
+            // 清空键列表显示
+            const keysDisplay = document.getElementById('kvKeysDisplay')
+            keysDisplay.innerHTML = '<strong>📭 KV 存储已清空</strong>'
+            keysDisplay.style.display = 'block'
+
+            log('✅ 所有 KV 数据已清空', 'success')
+            log('💡 建议刷新 ChatBot ID 列表', 'info')
+          } else {
+            log('❌ 清空 KV 数据失败', 'error')
+          }
+
+          showResponse('systemResponse', result)
+        } catch (error) {
+          log(\`❌ 清空 KV 数据错误: \${error.message}\`, 'error')
+        }
       }
 
       // 系统状态
@@ -1364,15 +1469,107 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         log('⚠️ 轮询功能已禁用，需要手动启用', 'warning')
       }
 
+      // 服务状态管理函数
+      async function startService() {
+        log('🚀 启动服务...', 'info')
+
+        if (!validateChatbotId()) {
+          return
+        }
+
+        // 更新服务状态显示
+        document.getElementById('serviceStatus').textContent = '运行中'
+
+        // 启动轮询（如果需要）
+        if (!isPollingEnabled) {
+          await enableActionPolling()
+        }
+
+        // 刷新 ChatBot ID 列表
+        await refreshChatbotIds()
+
+        log('✅ 服务已启动', 'success')
+        log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+      }
+
+      async function stopService() {
+        log('🛑 停止服务...', 'info')
+
+        // 更新服务状态显示
+        document.getElementById('serviceStatus').textContent = '已停止'
+
+        // 停止轮询
+        if (isPollingEnabled) {
+          disableActionPolling()
+        }
+
+        log('✅ 服务已停止', 'success')
+      }
+
+      async function testService() {
+        log('🧪 测试服务...', 'info')
+
+        try {
+          // 测试基本 API 连接
+          const healthResult = await apiCall('/api/health')
+          if (healthResult.success) {
+            log('✅ API 健康检查通过', 'success')
+          } else {
+            log('❌ API 健康检查失败', 'error')
+            return
+          }
+
+          // 测试 KV 存储
+          if (validateChatbotId()) {
+            await testKVStorage()
+          }
+
+          // 测试获取 KV 统计信息
+          await getKVStats()
+
+          log('✅ 服务测试完成', 'success')
+        } catch (error) {
+          log(\`❌ 服务测试失败: \${error.message}\`, 'error')
+        }
+      }
+
+      async function checkServiceStatus() {
+        log('🔍 检查服务状态...', 'info')
+
+        try {
+          // 检查 API 状态
+          const healthResult = await apiCall('/api/health')
+          if (healthResult.success) {
+            log('✅ API 服务正常', 'success')
+          } else {
+            log('❌ API 服务异常', 'error')
+          }
+
+          // 检查系统状态
+          await getSystemStatus()
+
+          // 检查轮询状态
+          checkPollingStatus()
+
+          // 检查 ChatBot ID 状态
+          log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+          log(\`💾 ID 来源: \${loadSavedChatbotId() ? '本地存储' : '新生成'}\`, 'info')
+
+          log('✅ 服务状态检查完成', 'success')
+        } catch (error) {
+          log(\`❌ 服务状态检查失败: \${error.message}\`, 'error')
+        }
+      }
+
       // 页面加载完成后自动执行
       window.addEventListener('load', () => {
         log('🎉 Worker 模式测试页面加载完成 (重构版)', 'success')
         log('⚠️ 轮询功能默认已禁用，需要手动启用', 'warning')
         log('💡 在 Cloudflare Workers 环境中，可按需启用 Action 轮询模式', 'info')
 
-        // 自动执行健康检查和获取现有 ChatBot ID
+        // 自动执行初始化和获取现有 ChatBot ID
         setTimeout(() => {
-          getHealthCheck()
+          getKVStats()
           getSystemStatus()
           refreshChatbotIds()
 
@@ -1390,7 +1587,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 </html>`
 
 export function createStaticRoutesForWorker() {
-  const staticApp = new Hono()
+  const staticApp = new Hono<{ Bindings: CloudflareBindings }>()
 
   // 根路径返回测试仪表板
   staticApp.get('/', c => {
@@ -1419,6 +1616,91 @@ export function createStaticRoutesForWorker() {
       },
       timestamp: Date.now(),
     })
+  })
+
+  // KV 存储统计信息
+  staticApp.get('/api/kv/stats', async c => {
+    try {
+      // 从环境变量获取 KV 存储
+      const kv = c.env?.EDGE_SYNC_KV
+      if (!kv) {
+        return c.json(
+          {
+            success: false,
+            error: 'KV storage not available',
+            timestamp: Date.now(),
+          },
+          500
+        )
+      }
+
+      // 获取所有键
+      const result = await kv.list()
+      const keys = result.keys.map((key: any) => key.name.replace('edge-sync:', ''))
+
+      const stats = {
+        totalKeys: keys.length,
+        prefix: 'edge-sync',
+        ttl: 3600,
+        keys: keys,
+      }
+
+      return c.json({
+        success: true,
+        data: stats,
+        timestamp: Date.now(),
+      })
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: Date.now(),
+        },
+        500
+      )
+    }
+  })
+
+  // 清空所有 KV 数据
+  staticApp.delete('/api/kv/clear', async c => {
+    try {
+      // 从环境变量获取 KV 存储
+      const kv = c.env?.EDGE_SYNC_KV
+      if (!kv) {
+        return c.json(
+          {
+            success: false,
+            error: 'KV storage not available',
+            timestamp: Date.now(),
+          },
+          500
+        )
+      }
+
+      // 获取所有键并删除
+      const result = await kv.list()
+      const deletePromises = result.keys.map((key: any) => kv.delete(key.name))
+      await Promise.all(deletePromises)
+
+      return c.json({
+        success: true,
+        data: {
+          message: 'All KV data cleared successfully',
+          clearedCount: result.keys.length,
+        },
+        timestamp: Date.now(),
+      })
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: Date.now(),
+        },
+        500
+      )
+    }
   })
 
   return staticApp
