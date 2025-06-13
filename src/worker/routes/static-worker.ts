@@ -1569,7 +1569,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
         // 自动执行初始化和获取现有 ChatBot ID
         setTimeout(() => {
-          getKVStats()
+         
           getSystemStatus()
          
 
