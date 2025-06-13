@@ -1571,7 +1571,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         setTimeout(() => {
           getKVStats()
           getSystemStatus()
-          refreshChatbotIds()
+         
 
           // 不再自动启动轮询，需要手动启用
           log('💡 如需接收 Actions，请点击 "启用轮询" 按钮', 'info')
@@ -1579,7 +1579,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
         // 定期刷新 ChatBot ID 列表（每30秒）
         setInterval(() => {
-          refreshChatbotIds()
+      
         }, 30000)
       })
     </script>
