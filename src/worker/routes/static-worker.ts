@@ -218,6 +218,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
     <div class="header">
       <h1>🚀 Edge Sync State 测试仪表板</h1>
       <p>Cloudflare Workers + KV 存储模式 <span class="environment-badge">EDGE COMPUTING</span></p>
+      <p style="margin-top: 10px; font-size: 14px; color: rgba(255,255,255,0.8);">
+        💡 使用 KV 存储 + 轮询模式避免跨请求 I/O 限制
+      </p>
     </div>
 
     <div class="dashboard">
@@ -230,11 +233,19 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         <div class="stats-grid">
           <div class="stat-item">
             <div class="stat-value" id="connectionStatus">离线</div>
-            <div class="stat-label">连接状态</div>
+            <div class="stat-label">WebSocket 状态</div>
           </div>
           <div class="stat-item">
             <div class="stat-value" id="connectionTime">0s</div>
             <div class="stat-label">连接时长</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="pollingStatus">未启动</div>
+            <div class="stat-label">Action 轮询</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="pollingCount">0</div>
+            <div class="stat-label">轮询次数</div>
           </div>
         </div>
         <div class="input-group">
@@ -261,6 +272,16 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           <button class="btn danger" onclick="disconnect()">❌ 断开</button>
           <button class="btn warning" onclick="testConnection()">🧪 测试</button>
           <button class="btn small" onclick="checkConnectionStatus()">🔍 状态</button>
+        </div>
+        <div class="button-row">
+          <button class="btn success" onclick="startActionPolling()">🔄 启动轮询</button>
+          <button class="btn danger" onclick="stopActionPolling()">🛑 停止轮询</button>
+          <button class="btn warning" onclick="toggleActionPolling()">🔀 切换轮询</button>
+          <button class="btn small" onclick="checkPollingStatus()">📊 轮询状态</button>
+        </div>
+        <div class="button-row">
+          <button class="btn" onclick="checkQueuedActions()">🔍 检查队列</button>
+          <button class="btn small" onclick="clearActionQueue()">🗑️ 清空队列</button>
         </div>
       </div>
 
@@ -346,7 +367,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         <div class="button-row">
           <button class="btn success" onclick="sendCustomAction()">🚀 发送 Action</button>
           <button class="btn warning" onclick="sendQuickActions()">⚡ 快速测试</button>
-          <button class="btn" onclick="broadcastAction()">📢 广播</button>
+          <button class="btn" onclick="broadcastAction()" disabled title="广播在 Cloudflare Workers 中不支持">📢 广播 (不支持)</button>
         </div>
         <div id="actionResponse" class="response-display"></div>
       </div>
@@ -376,6 +397,8 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       let connectionTimer = null
       let autoScroll = true
       let logFilter = 'all'
+      let actionPollingInterval = null
+      let isPollingEnabled = false
 
       // ChatBot ID 持久化功能
       function saveChatbotId(id) {
@@ -719,10 +742,20 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         websocket.onmessage = function(event) {
           try {
             const message = JSON.parse(event.data)
-            log(\`📨 收到消息: \${message.type}\`, 'info')
+            log(\`📨 收到 WebSocket 消息: \${message.type}\`, 'info')
 
             if (message.type === 'action') {
-              log(\`🎯 收到 Action: \${JSON.stringify(message.data)}\`, 'success')
+              log(\`🎯 通过 WebSocket 收到 Action: \${JSON.stringify(message.data)}\`, 'success')
+              handleReceivedAction(message.data)
+            } else if (message.type === 'welcome') {
+              log(\`🎉 WebSocket 连接欢迎消息\`, 'success')
+              // 如果欢迎消息提示检查队列，立即执行一次轮询
+              if (message.data && message.data.checkQueue) {
+                log(\`🔍 检查队列中的待处理 Actions...\`, 'info')
+                setTimeout(() => {
+                  checkQueuedActions()
+                }, 500) // 延迟500ms确保连接稳定
+              }
             } else if (message.type === 'heartbeat') {
               log(\`💓 收到心跳\`, 'info')
               // 回复心跳
@@ -1039,6 +1072,11 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       }
 
       async function broadcastAction() {
+        log('⚠️ 广播功能在 Cloudflare Workers 环境中不支持', 'warning')
+        log('💡 这是由于 Cloudflare Workers 的 I/O 隔离限制', 'info')
+        log('🔄 请使用单独的 Action 发送功能', 'info')
+
+        // 仍然尝试调用 API，但会收到不支持的响应
         const type = document.getElementById('actionType').value
         const target = document.getElementById('actionTarget').value
         const payloadText = document.getElementById('actionPayload').value
@@ -1046,7 +1084,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         try {
           const payload = JSON.parse(payloadText)
 
-          log(\`📢 广播 \${type} Action...\`, 'info')
+          log(\`📢 尝试广播 \${type} Action (预期会失败)...\`, 'warning')
 
           const result = await apiCall('/api/action/broadcast', {
             method: 'POST',
@@ -1081,15 +1119,222 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         \`
       }
 
+      // Action 轮询功能
+      let pollingCount = 0
+
+      async function startActionPolling() {
+        if (isPollingEnabled) {
+          log('⚠️ Action 轮询已经启动', 'warning')
+          return
+        }
+
+        if (!validateChatbotId()) {
+          return
+        }
+
+        isPollingEnabled = true
+        pollingCount = 0
+        updatePollingStatus()
+
+        log('🔄 启动 Action 轮询...', 'info')
+        log(\`🤖 轮询 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+
+        actionPollingInterval = setInterval(async () => {
+          try {
+            pollingCount++
+            updatePollingStatus()
+
+            const result = await apiCall(\`/api/action/\${CHATBOT_ID}/poll\`)
+
+            if (result.success && result.data && result.data.actions) {
+              const actions = result.data.actions
+
+              if (actions.length > 0) {
+                log(\`📨 轮询到 \${actions.length} 个 Action\`, 'success')
+
+                actions.forEach(action => {
+                  log(\`🎯 收到 Action: \${action.type}\`, 'success')
+                  log(\`📋 目标: \${action.target || 'N/A'}\`, 'info')
+                  log(\`📦 数据: \${JSON.stringify(action.payload || {})}\`, 'info')
+                  log(\`⏰ 时间: \${new Date(action.timestamp || action.queuedAt).toLocaleTimeString()}\`, 'info')
+
+                  // 这里可以添加实际的 Action 处理逻辑
+                  // 例如：执行导航、点击、输入等操作
+                  handleReceivedAction(action)
+                })
+              }
+            } else if (result.success) {
+              // 轮询成功但没有 actions，这是正常的
+              // log('🔄 轮询完成，暂无新 Actions', 'info')
+            } else {
+              log(\`❌ 轮询失败: \${result.error || 'Unknown error'}\`, 'error')
+            }
+          } catch (error) {
+            console.error('Action polling error:', error)
+            log(\`❌ 轮询错误: \${error.message}\`, 'error')
+          }
+        }, 2000) // 每2秒轮询一次
+
+        log('✅ Action 轮询已启动 (每2秒)', 'success')
+      }
+
+      function updatePollingStatus() {
+        const statusElement = document.getElementById('pollingStatus')
+        const countElement = document.getElementById('pollingCount')
+
+        if (statusElement) {
+          statusElement.textContent = isPollingEnabled ? '运行中' : '已停止'
+        }
+
+        if (countElement) {
+          countElement.textContent = pollingCount.toString()
+        }
+      }
+
+      function stopActionPolling() {
+        if (!isPollingEnabled) {
+          log('⚠️ Action 轮询未启动', 'warning')
+          return
+        }
+
+        if (actionPollingInterval) {
+          clearInterval(actionPollingInterval)
+          actionPollingInterval = null
+        }
+
+        isPollingEnabled = false
+        updatePollingStatus()
+        log('🛑 Action 轮询已停止', 'info')
+      }
+
+      function toggleActionPolling() {
+        if (isPollingEnabled) {
+          stopActionPolling()
+        } else {
+          startActionPolling()
+        }
+      }
+
+      function checkPollingStatus() {
+        log(\`📊 Action 轮询状态: \${isPollingEnabled ? '运行中' : '已停止'}\`, 'info')
+        log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+        log(\`⏱️ 轮询间隔: 2秒\`, 'info')
+
+        if (isPollingEnabled) {
+          log('💡 轮询模式适用于 Cloudflare Workers 环境', 'info')
+          log('📡 Actions 将通过 KV 存储 + 轮询方式接收', 'info')
+        } else {
+          log('💡 可以启动轮询来接收 Actions', 'info')
+        }
+      }
+
+      // 检查队列中的 Actions（单次检查）
+      async function checkQueuedActions() {
+        try {
+          log('🔍 检查队列中的 Actions...', 'info')
+          const result = await apiCall(\`/api/action/\${CHATBOT_ID}/poll\`)
+
+          if (result.success && result.data && result.data.actions) {
+            const actions = result.data.actions
+
+            if (actions.length > 0) {
+              log(\`📨 从队列中获取到 \${actions.length} 个 Action\`, 'success')
+
+              actions.forEach(action => {
+                log(\`🎯 队列中的 Action: \${action.type}\`, 'success')
+                handleReceivedAction(action)
+              })
+            } else {
+              log('📭 队列为空', 'info')
+            }
+          } else {
+            log(\`❌ 检查队列失败: \${result.error || 'Unknown error'}\`, 'error')
+          }
+        } catch (error) {
+          log(\`❌ 检查队列错误: \${error.message}\`, 'error')
+        }
+      }
+
+      // 清空 Action 队列
+      async function clearActionQueue() {
+        try {
+          log('🗑️ 清空 Action 队列...', 'info')
+          // 调用轮询 API 来清空队列
+          const result = await apiCall(\`/api/action/\${CHATBOT_ID}/poll\`)
+
+          if (result.success && result.data && result.data.actions) {
+            const clearedCount = result.data.actions.length
+            if (clearedCount > 0) {
+              log(\`🗑️ 已清空 \${clearedCount} 个待处理的 Actions\`, 'success')
+            } else {
+              log('📭 队列已经为空', 'info')
+            }
+          } else {
+            log(\`❌ 清空队列失败: \${result.error || 'Unknown error'}\`, 'error')
+          }
+        } catch (error) {
+          log(\`❌ 清空队列错误: \${error.message}\`, 'error')
+        }
+      }
+
+      // 处理接收到的 Action
+      function handleReceivedAction(action) {
+        log(\`🎯 处理 Action: \${action.type}\`, 'success')
+
+        switch (action.type) {
+          case 'navigate':
+            if (action.payload && action.payload.url) {
+              log(\`🧭 导航到: \${action.payload.url}\`, 'success')
+              // 在实际应用中，这里会执行页面导航
+              // window.location.href = action.payload.url
+            }
+            break
+
+          case 'click':
+            if (action.target) {
+              log(\`👆 点击元素: \${action.target}\`, 'success')
+              // 在实际应用中，这里会执行点击操作
+              // document.querySelector(action.target)?.click()
+            }
+            break
+
+          case 'input':
+            if (action.target && action.payload && action.payload.value) {
+              log(\`⌨️ 输入到 \${action.target}: \${action.payload.value}\`, 'success')
+              // 在实际应用中，这里会执行输入操作
+              // const element = document.querySelector(action.target)
+              // if (element) element.value = action.payload.value
+            }
+            break
+
+          case 'scroll':
+            log(\`📜 滚动操作\`, 'success')
+            // 在实际应用中，这里会执行滚动操作
+            break
+
+          default:
+            log(\`🔧 自定义 Action: \${action.type}\`, 'info')
+            log(\`📦 Action 数据: \${JSON.stringify(action)}\`, 'info')
+            break
+        }
+
+        // 显示 Action 处理完成
+        log(\`✅ Action 处理完成: \${action.type}\`, 'success')
+      }
+
       // 页面加载完成后自动执行
       window.addEventListener('load', () => {
         log('🎉 页面加载完成，可以开始测试', 'success')
+        log('💡 在 Cloudflare Workers 环境中，建议使用 Action 轮询模式', 'info')
 
         // 自动执行健康检查和获取现有 ChatBot ID
         setTimeout(() => {
           getHealthCheck()
           getSystemStatus()
           refreshChatbotIds()
+
+          // 自动启动 Action 轮询
+          startActionPolling()
         }, 1000)
 
         // 定期刷新 ChatBot ID 列表（每30秒）

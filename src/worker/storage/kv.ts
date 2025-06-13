@@ -151,8 +151,12 @@ export class KVStorageAdapter extends BaseStorageAdapter {
    * Action 队列支持（用于轮询模式）
    */
   async addActionToQueue(chatbotId: string, action: any): Promise<void> {
+    console.log(`KV: Adding action to queue for chatbot: ${chatbotId}`, action)
+
     const queueKey = `action_queue:${chatbotId}`
     const existingQueue = (await this.get(queueKey)) || []
+
+    console.log(`KV: Current queue length for ${chatbotId}: ${existingQueue.length}`)
 
     existingQueue.push({
       ...action,
@@ -162,20 +166,27 @@ export class KVStorageAdapter extends BaseStorageAdapter {
     // 限制队列长度，避免无限增长
     if (existingQueue.length > 100) {
       existingQueue.splice(0, existingQueue.length - 100)
+      console.log(`KV: Queue trimmed to 100 items for ${chatbotId}`)
     }
 
     await this.set(queueKey, existingQueue, 300) // 5分钟过期
+    console.log(`KV: Action queue updated for ${chatbotId}, new length: ${existingQueue.length}`)
   }
 
   /**
    * 获取并清空 Action 队列
    */
   async getAndClearActionQueue(chatbotId: string): Promise<any[]> {
+    console.log(`KV: Getting action queue for chatbot: ${chatbotId}`)
+
     const queueKey = `action_queue:${chatbotId}`
     const queue = (await this.get(queueKey)) || []
 
+    console.log(`KV: Found ${queue.length} actions in queue for ${chatbotId}`)
+
     if (queue.length > 0) {
       await this.delete(queueKey)
+      console.log(`KV: Cleared action queue for ${chatbotId}`)
     }
 
     return queue

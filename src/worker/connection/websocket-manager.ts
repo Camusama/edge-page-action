@@ -1,7 +1,9 @@
 /**
  * WebSocket 连接管理器 (Cloudflare Workers 专用)
  *
- * 在 Cloudflare Workers 中，WebSocket 比 SSE 更适合实时通信
+ * 注意：由于 Cloudflare Workers 的 I/O 隔离限制，
+ * WebSocket 对象不能跨请求上下文使用。
+ * 此管理器主要用于单个请求生命周期内的 WebSocket 处理。
  */
 
 import type { SSEMessage, ConnectionManager, ConnectionInfo } from '../../shared/types'
@@ -21,11 +23,16 @@ interface WebSocketConnection {
 }
 
 export class WebSocketConnectionManager implements ConnectionManager {
+  // 注意：这个 Map 只在单个请求生命周期内有效
+  // 不能用于跨请求的连接管理
   private connections: Map<string, WebSocketConnection> = new Map()
   private pingInterval: number = 30000 // 30秒心跳
 
   constructor() {
     console.log('WebSocket Connection Manager initialized for Cloudflare Workers')
+    console.log(
+      'WARNING: WebSocket connections cannot persist across request contexts in Cloudflare Workers'
+    )
   }
 
   /**
@@ -71,6 +78,8 @@ export class WebSocketConnectionManager implements ConnectionManager {
         message: 'WebSocket connection established',
         chatbotId,
         timestamp: Date.now(),
+        // 提示客户端检查队列中的 Actions
+        checkQueue: true,
       },
       timestamp: Date.now(),
     })
@@ -196,14 +205,22 @@ export class WebSocketConnectionManager implements ConnectionManager {
 
   /**
    * 发送消息到指定连接
+   *
+   * 注意：由于 Cloudflare Workers 的 I/O 隔离限制，
+   * 此方法只能在 WebSocket 连接的同一请求上下文中使用。
+   * 跨请求的消息发送应该使用 KV 存储 + 轮询机制。
    */
   sendToConnection(chatbotId: string, message: SSEMessage): boolean {
     console.log(`Attempting to send message to chatbot: ${chatbotId}`)
-    console.log(`Available connections: ${Array.from(this.connections.keys()).join(', ')}`)
+    console.log(
+      `Available connections in current context: ${Array.from(this.connections.keys()).join(', ')}`
+    )
 
     const connection = this.connections.get(chatbotId)
     if (!connection) {
-      console.warn(`No connection found for chatbot: ${chatbotId}`)
+      console.warn(`No connection found for chatbot: ${chatbotId} in current request context`)
+      console.warn('This is expected in Cloudflare Workers due to I/O isolation')
+      console.warn('Messages should be queued in KV storage for polling-based delivery')
       return false
     }
 
@@ -227,6 +244,11 @@ export class WebSocketConnectionManager implements ConnectionManager {
       return true
     } catch (error) {
       console.error(`Failed to send message to ${chatbotId}:`, error)
+      // 检查是否是跨请求 I/O 错误
+      if (error instanceof Error && error.message.includes('I/O objects')) {
+        console.error('Cross-request I/O error detected - this is a Cloudflare Workers limitation')
+        console.error('Consider using KV storage + polling for cross-request messaging')
+      }
       this.removeConnection(chatbotId)
       return false
     }

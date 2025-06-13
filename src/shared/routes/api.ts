@@ -228,6 +228,13 @@ export function createApiRoutes(syncService: SyncService, corsOrigins: string[])
       // 获取待处理的 Actions（从 KV 存储中获取）
       const actions = await syncService.getActionsForChatbot(chatbotId)
 
+      // 在 Cloudflare Workers 中，轮询 API 无法访问其他请求上下文的 WebSocket 连接
+      // 所以我们只返回 Actions，让前端通过 HTTP 响应或 WebSocket 消息处理
+      if (actions.length > 0) {
+        console.log(`Poll API: Found ${actions.length} actions for ${chatbotId}`)
+        console.log(`Poll API: Actions will be returned in HTTP response for client processing`)
+      }
+
       const response: ApiResponse = {
         success: true,
         data: {

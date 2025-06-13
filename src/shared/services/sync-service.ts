@@ -70,36 +70,75 @@ export class SyncService {
     // 添加时间戳
     action.timestamp = Date.now()
 
-    // 构造 SSE 消息
-    const message: SSEMessage = {
-      type: 'action',
-      data: action,
-      timestamp: action.timestamp,
-    }
+    // 检查是否是 Cloudflare Workers 环境
+    const isCloudflareWorkers =
+      this.connectionManager.constructor.name === 'WebSocketConnectionManager'
 
-    // 发送到指定连接
-    const sent = this.connectionManager.sendToConnection(chatbotId, message)
+    console.log(`Environment detection: ${isCloudflareWorkers ? 'Cloudflare Workers' : 'Node.js'}`)
+    console.log(`Connection manager: ${this.connectionManager.constructor.name}`)
 
-    if (sent) {
-      console.log(`Action pushed to chatbot: ${chatbotId}`, action)
-    } else {
-      console.warn(`Failed to push action to chatbot: ${chatbotId} (connection not found)`)
+    if (isCloudflareWorkers) {
+      // 在 Cloudflare Workers 中，只使用 KV 队列，完全避免跨请求 I/O 问题
+      console.log('Cloudflare Workers detected - using KV-based action queuing only')
+      console.log('Skipping WebSocket send to avoid cross-request I/O error')
 
-      // 尝试添加到队列（如果支持）
       try {
         await this.addActionForChatbot(chatbotId, action)
-        console.log(`Action queued for chatbot: ${chatbotId}`)
-      } catch (error) {
-        console.error(`Failed to queue action for chatbot: ${chatbotId}`, error)
-      }
-    }
+        console.log(`✅ Action successfully queued in KV for chatbot: ${chatbotId}`)
+        console.log(`📡 Action will be delivered via polling mechanism`)
 
-    return sent
+        // 在 Cloudflare Workers 中，不尝试直接发送 WebSocket 消息
+        // 因为这会导致跨请求 I/O 错误
+        // 所有 Actions 都通过 KV 存储 + 轮询机制传递
+
+        return true
+      } catch (error) {
+        console.error(`❌ Failed to queue action for chatbot: ${chatbotId}`, error)
+        return false
+      }
+    } else {
+      // Node.js 环境，使用传统的直接发送方式
+      const message: SSEMessage = {
+        type: 'action',
+        data: action,
+        timestamp: action.timestamp,
+      }
+
+      // 发送到指定连接
+      const sent = this.connectionManager.sendToConnection(chatbotId, message)
+
+      if (sent) {
+        console.log(`Action pushed to chatbot: ${chatbotId}`, action)
+      } else {
+        console.warn(`Failed to push action to chatbot: ${chatbotId} (connection not found)`)
+
+        // 尝试添加到队列（如果支持）
+        try {
+          await this.addActionForChatbot(chatbotId, action)
+          console.log(`Action queued for chatbot: ${chatbotId}`)
+        } catch (error) {
+          console.error(`Failed to queue action for chatbot: ${chatbotId}`, error)
+        }
+      }
+
+      return sent
+    }
   }
 
   // 广播 Action 到所有连接
   async broadcastAction(action: FrontendAction): Promise<void> {
     action.timestamp = Date.now()
+
+    // 检查是否是 Cloudflare Workers 环境
+    const isCloudflareWorkers =
+      this.connectionManager.constructor.name === 'WebSocketConnectionManager'
+
+    if (isCloudflareWorkers) {
+      console.log('Cloudflare Workers detected - broadcast not supported due to I/O isolation')
+      console.log('Broadcast actions are not supported in Cloudflare Workers environment')
+      console.log('Consider using individual action sending instead')
+      return
+    }
 
     const message: SSEMessage = {
       type: 'action',
