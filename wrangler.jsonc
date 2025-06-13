@@ -13,7 +13,7 @@
     "CACHE_TYPE": "kv",
     "CACHE_PREFIX": "edge-sync",
     "CACHE_TTL": "3600",
-    "CORS_ORIGINS": "*"
+    "CORS_ORIGINS": "https://dev.marquez.cc,http://devnote.marquez.cc/,http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:8082,http://10.100.129.36:3000,http://10.100.129.36:8082,*"
   }
   // "compatibility_flags": [
   //   "nodejs_compat"

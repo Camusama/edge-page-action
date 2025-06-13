@@ -21,15 +21,33 @@ import type { CloudflareBindings } from '../shared/types'
 // 创建 Hono 应用，支持 Cloudflare Workers 类型
 const app = new Hono<{ Bindings: CloudflareBindings }>()
 
-// 设置全局 CORS（在路由定义之前）
-app.use(
-  '*',
-  cors({
-    origin: ['*'], // 默认允许所有源，稍后会根据配置更新
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'Cache-Control'],
-  })
-)
+// 动态 CORS 中间件 - 根据环境变量配置
+app.use('*', async (c, next) => {
+  const config = loadConfig(c.env)
+  const corsOrigins = config.corsOrigins || ['*']
+
+  // 设置 CORS 头
+  const origin = c.req.header('Origin')
+  const allowedOrigins = corsOrigins.includes('*') ? ['*'] : corsOrigins
+
+  if (origin && (allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
+    c.header('Access-Control-Allow-Origin', allowedOrigins.includes('*') ? '*' : origin)
+  }
+
+  c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  c.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Cache-Control, Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version'
+  )
+  c.header('Access-Control-Max-Age', '86400')
+
+  // 处理 OPTIONS 预检请求
+  if (c.req.method === 'OPTIONS') {
+    return c.text('', 204)
+  }
+
+  await next()
+})
 
 // 初始化存储和服务
 let storage: any
