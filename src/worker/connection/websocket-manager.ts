@@ -62,6 +62,7 @@ export class WebSocketConnectionManager implements ConnectionManager {
 
     console.log(`WebSocket connection established for chatbot: ${chatbotId}`)
     console.log(`Total connections: ${this.connections.size}`)
+    console.log(`All connected chatbot IDs: ${Array.from(this.connections.keys()).join(', ')}`)
 
     // 发送欢迎消息
     this.sendToConnection(chatbotId, {
@@ -119,11 +120,13 @@ export class WebSocketConnectionManager implements ConnectionManager {
     const connection = this.connections.get(chatbotId)
     if (connection) {
       connection.lastPing = Date.now()
+      console.log(`Updated lastPing for ${chatbotId} to ${connection.lastPing}`)
     }
 
     // 处理不同类型的消息
     switch (data.type) {
       case 'ping':
+        console.log(`Received ping from ${chatbotId}, sending pong`)
         this.sendToConnection(chatbotId, {
           type: 'pong',
           data: { timestamp: Date.now() },
@@ -132,11 +135,16 @@ export class WebSocketConnectionManager implements ConnectionManager {
         break
 
       case 'heartbeat':
+        console.log(`Received heartbeat from ${chatbotId}`)
         // 心跳响应
         break
 
+      case 'pong':
+        console.log(`Received pong from ${chatbotId}`)
+        break
+
       default:
-        console.log(`Unknown message type: ${data.type}`)
+        console.log(`Unknown message type from ${chatbotId}: ${data.type}`)
     }
   }
 
@@ -151,9 +159,18 @@ export class WebSocketConnectionManager implements ConnectionManager {
       }
 
       const now = Date.now()
-      if (now - connection.lastPing > this.pingInterval * 2) {
+      // 增加超时时间，避免过早断开连接
+      if (now - connection.lastPing > this.pingInterval * 3) {
         // 超时，关闭连接
         console.log(`WebSocket heartbeat timeout for ${connection.chatbotId}`)
+        this.removeConnection(connection.chatbotId)
+        clearInterval(heartbeatTimer)
+        return
+      }
+
+      // 检查 WebSocket 状态
+      if (connection.websocket.readyState !== WebSocket.OPEN) {
+        console.log(`WebSocket not open for ${connection.chatbotId}, removing connection`)
         this.removeConnection(connection.chatbotId)
         clearInterval(heartbeatTimer)
         return
@@ -168,6 +185,7 @@ export class WebSocketConnectionManager implements ConnectionManager {
             timestamp: now,
           })
         )
+        console.log(`Heartbeat sent to ${connection.chatbotId}`)
       } catch (error) {
         console.error(`Heartbeat send error for ${connection.chatbotId}:`, error)
         this.removeConnection(connection.chatbotId)
@@ -180,13 +198,32 @@ export class WebSocketConnectionManager implements ConnectionManager {
    * 发送消息到指定连接
    */
   sendToConnection(chatbotId: string, message: SSEMessage): boolean {
+    console.log(`Attempting to send message to chatbot: ${chatbotId}`)
+    console.log(`Available connections: ${Array.from(this.connections.keys()).join(', ')}`)
+
     const connection = this.connections.get(chatbotId)
     if (!connection) {
+      console.warn(`No connection found for chatbot: ${chatbotId}`)
+      return false
+    }
+
+    // 检查 WebSocket 状态
+    const wsState = connection.websocket.readyState
+    console.log(
+      `WebSocket state for ${chatbotId}: ${wsState} (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)`
+    )
+
+    if (wsState !== WebSocket.OPEN) {
+      console.warn(`WebSocket not open for ${chatbotId}, state: ${wsState}`)
+      this.removeConnection(chatbotId)
       return false
     }
 
     try {
-      connection.websocket.send(JSON.stringify(message))
+      const messageStr = JSON.stringify(message)
+      console.log(`Sending message to ${chatbotId}:`, messageStr)
+      connection.websocket.send(messageStr)
+      console.log(`Message sent successfully to ${chatbotId}`)
       return true
     } catch (error) {
       console.error(`Failed to send message to ${chatbotId}:`, error)

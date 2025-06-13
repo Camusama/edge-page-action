@@ -1,4 +1,10 @@
-import type { StorageAdapter, PageState, FrontendAction, SSEMessage, ConnectionManager } from '../types'
+import type {
+  StorageAdapter,
+  PageState,
+  FrontendAction,
+  SSEMessage,
+  ConnectionManager,
+} from '../types'
 
 export class SyncService {
   constructor(private storage: StorageAdapter, private connectionManager: ConnectionManager) {}
@@ -54,6 +60,13 @@ export class SyncService {
       throw new Error('chatbotId is required')
     }
 
+    console.log(`SyncService: Pushing action to chatbot: ${chatbotId}`, action)
+    console.log(`SyncService: Connection manager type: ${this.connectionManager.constructor.name}`)
+    console.log(`SyncService: Total connections: ${this.connectionManager.getConnectionCount()}`)
+    console.log(
+      `SyncService: Available chatbot IDs: ${this.connectionManager.getAllChatbotIds().join(', ')}`
+    )
+
     // 添加时间戳
     action.timestamp = Date.now()
 
@@ -71,6 +84,14 @@ export class SyncService {
       console.log(`Action pushed to chatbot: ${chatbotId}`, action)
     } else {
       console.warn(`Failed to push action to chatbot: ${chatbotId} (connection not found)`)
+
+      // 尝试添加到队列（如果支持）
+      try {
+        await this.addActionForChatbot(chatbotId, action)
+        console.log(`Action queued for chatbot: ${chatbotId}`)
+      } catch (error) {
+        console.error(`Failed to queue action for chatbot: ${chatbotId}`, error)
+      }
     }
 
     return sent

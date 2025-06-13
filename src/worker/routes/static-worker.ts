@@ -260,6 +260,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           <button class="btn success" onclick="connect()">🔌 连接</button>
           <button class="btn danger" onclick="disconnect()">❌ 断开</button>
           <button class="btn warning" onclick="testConnection()">🧪 测试</button>
+          <button class="btn small" onclick="checkConnectionStatus()">🔍 状态</button>
         </div>
       </div>
 
@@ -722,6 +723,16 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
             if (message.type === 'action') {
               log(\`🎯 收到 Action: \${JSON.stringify(message.data)}\`, 'success')
+            } else if (message.type === 'heartbeat') {
+              log(\`💓 收到心跳\`, 'info')
+              // 回复心跳
+              websocket.send(JSON.stringify({
+                type: 'heartbeat',
+                data: { timestamp: Date.now() },
+                timestamp: Date.now()
+              }))
+            } else if (message.type === 'pong') {
+              log(\`🏓 收到 pong 响应\`, 'info')
             }
           } catch (error) {
             log(\`消息解析错误: \${error.message}\`, 'error')
@@ -764,6 +775,41 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
         websocket.send(JSON.stringify(testMessage))
         log('🧪 发送测试消息', 'info')
+      }
+
+      function checkConnectionStatus() {
+        if (!websocket) {
+          log('❌ WebSocket 对象不存在', 'error')
+          return
+        }
+
+        const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED']
+        const state = states[websocket.readyState] || 'UNKNOWN'
+
+        log(\`🔍 WebSocket 状态: \${state} (\${websocket.readyState})\`, 'info')
+        log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+
+        // 检查服务器端连接状态
+        checkServerConnectionStatus()
+      }
+
+      async function checkServerConnectionStatus() {
+        try {
+          const result = await apiCall('/ws/connections')
+          if (result.success && result.data.data) {
+            const connections = result.data.data.connections
+            const myConnection = connections.find(conn => conn.chatbotId === CHATBOT_ID)
+
+            if (myConnection) {
+              log(\`✅ 服务器端找到连接: \${CHATBOT_ID}\`, 'success')
+            } else {
+              log(\`❌ 服务器端未找到连接: \${CHATBOT_ID}\`, 'error')
+              log(\`📋 服务器端连接列表: \${connections.map(c => c.chatbotId).join(', ')}\`, 'info')
+            }
+          }
+        } catch (error) {
+          log(\`❌ 检查服务器连接状态失败: \${error.message}\`, 'error')
+        }
       }
 
       // 健康检查
