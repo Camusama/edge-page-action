@@ -1,7 +1,12 @@
 import { Hono } from 'hono'
 
 /**
- * Cloudflare Workers 静态文件服务
+ * Cloudflare Workers 静态文件服务 - 重构版本
+ *
+ * 完全重构的 Worker 模式测试文件
+ * - 默认关闭轮询功能
+ * - 优化的用户界面和交互体验
+ * - 更好的错误处理和状态管理
  *
  * 由于 Cloudflare Workers 不支持文件系统 API，
  * 我们将静态文件内容直接嵌入到代码中
@@ -13,7 +18,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Edge Sync State 测试仪表板 - RESTful API + 轮询模式</title>
+    <title>Edge Sync State 测试仪表板 - Worker 模式重构版</title>
     <style>
       * {
         margin: 0;
@@ -217,9 +222,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
   <body>
     <div class="header">
       <h1>🚀 Edge Sync State 测试仪表板</h1>
-      <p>RESTful API + 轮询模式 <span class="environment-badge">NO WEBSOCKET</span></p>
+      <p>Worker 模式重构版 <span class="environment-badge">POLLING DISABLED</span></p>
       <p style="margin-top: 10px; font-size: 14px; color: rgba(255,255,255,0.8);">
-        💡 纯 RESTful API + 轮询架构，更简单、更可靠
+        💡 完全重构的 Worker 模式，默认关闭轮询，按需启用
       </p>
     </div>
 
@@ -240,7 +245,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
             <div class="stat-label">运行时长</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value" id="pollingStatus">未启动</div>
+            <div class="stat-value" id="pollingStatus">已禁用</div>
             <div class="stat-label">Action 轮询</div>
           </div>
           <div class="stat-item">
@@ -274,28 +279,29 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           <button class="btn small" onclick="checkServiceStatus()">🔍 状态</button>
         </div>
         <div class="button-row">
-          <button class="btn success" onclick="startActionPolling()">🔄 启动轮询</button>
-          <button class="btn danger" onclick="stopActionPolling()">🛑 停止轮询</button>
-          <button class="btn warning" onclick="toggleActionPolling()">🔀 切换轮询</button>
+          <button class="btn warning" onclick="enableActionPolling()">⚡ 启用轮询</button>
+          <button class="btn danger" onclick="disableActionPolling()">🛑 禁用轮询</button>
+          <button class="btn" onclick="toggleActionPolling()">🔀 切换轮询</button>
           <button class="btn small" onclick="checkPollingStatus()">📊 轮询状态</button>
         </div>
         <div class="button-row">
           <button class="btn" onclick="checkQueuedActions()">🔍 检查队列</button>
           <button class="btn small" onclick="clearActionQueue()">🗑️ 清空队列</button>
+          <button class="btn small warning" onclick="resetPollingSystem()">🔄 重置系统</button>
         </div>
       </div>
 
-      <!-- 系统监控卡片 -->
+      <!-- KV 存储监控卡片 -->
       <div class="card">
-        <h3 class="card-title">📊 系统监控</h3>
+        <h3 class="card-title">�️ KV 存储监控</h3>
         <div class="stats-grid">
           <div class="stat-item">
             <div class="stat-value" id="serverHealth">-</div>
             <div class="stat-label">服务器状态</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value" id="totalConnections">0</div>
-            <div class="stat-label">总连接数</div>
+            <div class="stat-value" id="kvKeysCount">0</div>
+            <div class="stat-label">KV 键总数</div>
           </div>
           <div class="stat-item">
             <div class="stat-value" id="serverEnvironment">-</div>
@@ -308,8 +314,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         </div>
         <div class="button-row">
           <button class="btn" onclick="getHealthCheck()">❤️ 健康检查</button>
-          <button class="btn" onclick="getSystemStatus()">📈 系统状态</button>
+          <button class="btn" onclick="getAllKVKeys()">� 获取所有键</button>
           <button class="btn" onclick="testKVStorage()">🔧 测试 KV</button>
+          <button class="btn warning" onclick="clearAllKVData()">🗑️ 清空 KV</button>
         </div>
         <div id="systemResponse" class="response-display"></div>
       </div>
@@ -398,7 +405,8 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       let autoScroll = true
       let logFilter = 'all'
       let actionPollingInterval = null
-      let isPollingEnabled = false
+      let isPollingEnabled = false // 默认关闭轮询
+      let pollingDisabledByDefault = true // 标记默认禁用状态
 
       // ChatBot ID 持久化功能
       function saveChatbotId(id) {
@@ -439,8 +447,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
       // 初始化
       updateCurrentChatbotIdDisplay()
-      log('🌐 Cloudflare Workers 测试仪表板已加载', 'success')
+      log('🌐 Worker 模式测试仪表板已加载 (重构版)', 'success')
       log('📍 服务器地址: ' + SERVER_URL, 'info')
+      log('⚠️ 轮询功能默认已禁用，需要手动启用', 'warning')
 
       // 检查是否加载了保存的 ChatBot ID
       const savedId = loadSavedChatbotId()
@@ -1119,10 +1128,11 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         \`
       }
 
-      // Action 轮询功能
+      // Action 轮询功能 - 重构版本
       let pollingCount = 0
 
-      async function startActionPolling() {
+      // 启用轮询功能
+      async function enableActionPolling() {
         if (isPollingEnabled) {
           log('⚠️ Action 轮询已经启动', 'warning')
           return
@@ -1132,11 +1142,12 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           return
         }
 
+        pollingDisabledByDefault = false
         isPollingEnabled = true
         pollingCount = 0
         updatePollingStatus()
 
-        log('🔄 启动 Action 轮询...', 'info')
+        log('⚡ 启用 Action 轮询功能...', 'success')
         log(\`🤖 轮询 ChatBot ID: \${CHATBOT_ID}\`, 'info')
 
         actionPollingInterval = setInterval(async () => {
@@ -1183,7 +1194,11 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         const countElement = document.getElementById('pollingCount')
 
         if (statusElement) {
-          statusElement.textContent = isPollingEnabled ? '运行中' : '已停止'
+          if (pollingDisabledByDefault && !isPollingEnabled) {
+            statusElement.textContent = '已禁用'
+          } else {
+            statusElement.textContent = isPollingEnabled ? '运行中' : '已停止'
+          }
         }
 
         if (countElement) {
@@ -1191,38 +1206,43 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         }
       }
 
-      function stopActionPolling() {
-        if (!isPollingEnabled) {
-          log('⚠️ Action 轮询未启动', 'warning')
-          return
-        }
-
+      // 禁用轮询功能
+      function disableActionPolling() {
         if (actionPollingInterval) {
           clearInterval(actionPollingInterval)
           actionPollingInterval = null
         }
 
         isPollingEnabled = false
+        pollingDisabledByDefault = true
         updatePollingStatus()
-        log('🛑 Action 轮询已停止', 'info')
+        log('🛑 Action 轮询已禁用', 'warning')
+        log('💡 轮询功能已恢复到默认禁用状态', 'info')
       }
 
       function toggleActionPolling() {
         if (isPollingEnabled) {
-          stopActionPolling()
+          disableActionPolling()
         } else {
-          startActionPolling()
+          enableActionPolling()
         }
       }
 
       function checkPollingStatus() {
-        log(\`📊 Action 轮询状态: \${isPollingEnabled ? '运行中' : '已停止'}\`, 'info')
+        const statusText = pollingDisabledByDefault && !isPollingEnabled ? '已禁用' :
+                          isPollingEnabled ? '运行中' : '已停止'
+
+        log(\`📊 Action 轮询状态: \${statusText}\`, 'info')
         log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
         log(\`⏱️ 轮询间隔: 2秒\`, 'info')
+        log(\`🔧 默认状态: \${pollingDisabledByDefault ? '禁用' : '启用'}\`, 'info')
 
         if (isPollingEnabled) {
           log('💡 轮询模式适用于 Cloudflare Workers 环境', 'info')
           log('📡 Actions 将通过 KV 存储 + 轮询方式接收', 'info')
+        } else if (pollingDisabledByDefault) {
+          log('⚠️ 轮询功能当前已禁用，需要手动启用', 'warning')
+          log('💡 点击 "启用轮询" 按钮来开始接收 Actions', 'info')
         } else {
           log('💡 可以启动轮询来接收 Actions', 'info')
         }
@@ -1322,10 +1342,33 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         log(\`✅ Action 处理完成: \${action.type}\`, 'success')
       }
 
+      // 重置轮询系统
+      function resetPollingSystem() {
+        log('🔄 重置轮询系统...', 'info')
+
+        // 停止当前轮询
+        if (actionPollingInterval) {
+          clearInterval(actionPollingInterval)
+          actionPollingInterval = null
+        }
+
+        // 重置状态
+        isPollingEnabled = false
+        pollingDisabledByDefault = true
+        pollingCount = 0
+
+        // 更新显示
+        updatePollingStatus()
+
+        log('✅ 轮询系统已重置到默认状态', 'success')
+        log('⚠️ 轮询功能已禁用，需要手动启用', 'warning')
+      }
+
       // 页面加载完成后自动执行
       window.addEventListener('load', () => {
-        log('🎉 页面加载完成，可以开始测试', 'success')
-        log('💡 在 Cloudflare Workers 环境中，建议使用 Action 轮询模式', 'info')
+        log('🎉 Worker 模式测试页面加载完成 (重构版)', 'success')
+        log('⚠️ 轮询功能默认已禁用，需要手动启用', 'warning')
+        log('💡 在 Cloudflare Workers 环境中，可按需启用 Action 轮询模式', 'info')
 
         // 自动执行健康检查和获取现有 ChatBot ID
         setTimeout(() => {
@@ -1333,8 +1376,8 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           getSystemStatus()
           refreshChatbotIds()
 
-          // 自动启动 Action 轮询
-          startActionPolling()
+          // 不再自动启动轮询，需要手动启用
+          log('💡 如需接收 Actions，请点击 "启用轮询" 按钮', 'info')
         }, 1000)
 
         // 定期刷新 ChatBot ID 列表（每30秒）
@@ -1364,9 +1407,15 @@ export function createStaticRoutesForWorker() {
     return c.json({
       success: true,
       data: {
-        service: 'Static File Server',
+        service: 'Static File Server - Worker Mode (Restructured)',
         environment: 'Cloudflare Workers',
         status: 'healthy',
+        version: '2.0.0-restructured',
+        features: {
+          polling: 'disabled-by-default',
+          websocket: 'not-supported',
+          mode: 'worker-restructured',
+        },
       },
       timestamp: Date.now(),
     })
