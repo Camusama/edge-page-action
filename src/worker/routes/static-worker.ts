@@ -185,6 +185,33 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         from { box-shadow: 0 0 5px #ff6b6b; }
         to { box-shadow: 0 0 20px #ff6b6b, 0 0 30px #ff6b6b; }
       }
+      .chatbot-id-info {
+        margin-top: 8px;
+        padding: 8px;
+        background: linear-gradient(135deg, #f0f8ff, #e3f2fd);
+        border-radius: 6px;
+        border-left: 4px solid #2196f3;
+        font-size: 13px;
+      }
+      .chatbot-id-current {
+        font-family: 'Courier New', monospace;
+        color: #1976d2;
+        font-weight: bold;
+        background: rgba(33, 150, 243, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .flex-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .flex-row > * {
+        flex: 1;
+      }
+      .flex-row .btn {
+        flex: none;
+      }
     </style>
   </head>
   <body>
@@ -211,8 +238,23 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           </div>
         </div>
         <div class="input-group">
-          <label>ChatBot ID:</label>
-          <input type="text" id="chatbotIdDisplay" readonly />
+          <label>ChatBot ID 管理:</label>
+          <div class="flex-row">
+            <select id="chatbotIdSelect">
+              <option value="">选择现有的 ChatBot ID</option>
+            </select>
+            <button class="btn small" onclick="refreshChatbotIds()">🔄 刷新</button>
+          </div>
+          <div class="flex-row">
+            <input type="text" id="chatbotIdInput" placeholder="或输入新的 ChatBot ID" />
+            <button class="btn small success" onclick="applyChatbotId()">✅ 应用</button>
+            <button class="btn small warning" onclick="generateRandomId()">🎲 随机</button>
+            <button class="btn small danger" onclick="clearSavedId()">🗑️ 清除</button>
+          </div>
+          <div class="chatbot-id-info">
+            <strong>当前 ID:</strong> <span id="currentChatbotId" class="chatbot-id-current"></span>
+            <div id="chatbotIdStats" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
+          </div>
         </div>
         <div class="button-row">
           <button class="btn success" onclick="connect()">🔌 连接</button>
@@ -253,6 +295,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       <!-- 页面状态管理卡片 -->
       <div class="card">
         <h3 class="card-title">📄 页面状态管理</h3>
+        <div style="margin-bottom: 15px; padding: 8px; background: rgba(76, 175, 80, 0.1); border-radius: 4px; border-left: 3px solid #4caf50; font-size: 13px;">
+          <strong>🤖 当前操作的 ChatBot ID:</strong> <span id="pageStateChatbotId" style="font-family: monospace; color: #2e7d32; font-weight: bold;"></span>
+        </div>
         <div class="input-group">
           <label>页面URL:</label>
           <input type="text" id="pageUrl" value="https://example.com/cloudflare-kv-test" />
@@ -276,6 +321,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       <!-- Action 推送测试卡片 -->
       <div class="card">
         <h3 class="card-title">⚡ Action 推送测试</h3>
+        <div style="margin-bottom: 15px; padding: 8px; background: rgba(255, 152, 0, 0.1); border-radius: 4px; border-left: 3px solid #ff9800; font-size: 13px;">
+          <strong>🎯 目标 ChatBot ID:</strong> <span id="actionChatbotId" style="font-family: monospace; color: #e65100; font-weight: bold;"></span>
+        </div>
         <div class="input-group">
           <label>Action 类型:</label>
           <select id="actionType">
@@ -321,17 +369,62 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       // 全局变量 - 自动检测当前环境
       const SERVER_URL = window.location.origin
       const WS_URL = SERVER_URL.replace('http://', 'ws://').replace('https://', 'wss://')
-      let CHATBOT_ID = 'dashboard_' + Date.now()
+      let CHATBOT_ID = loadSavedChatbotId() || 'dashboard_' + Date.now()
       let websocket = null
       let connectionStartTime = null
       let connectionTimer = null
       let autoScroll = true
       let logFilter = 'all'
 
+      // ChatBot ID 持久化功能
+      function saveChatbotId(id) {
+        try {
+          localStorage.setItem('edge-sync-chatbot-id', id)
+          localStorage.setItem('edge-sync-chatbot-id-timestamp', Date.now().toString())
+        } catch (error) {
+          console.warn('无法保存 ChatBot ID 到本地存储:', error)
+        }
+      }
+
+      function loadSavedChatbotId() {
+        try {
+          const savedId = localStorage.getItem('edge-sync-chatbot-id')
+          const timestamp = localStorage.getItem('edge-sync-chatbot-id-timestamp')
+
+          // 如果保存的 ID 超过 24 小时，则不使用
+          if (savedId && timestamp) {
+            const age = Date.now() - parseInt(timestamp)
+            if (age < 24 * 60 * 60 * 1000) { // 24小时
+              return savedId
+            }
+          }
+        } catch (error) {
+          console.warn('无法从本地存储加载 ChatBot ID:', error)
+        }
+        return null
+      }
+
+      function clearSavedChatbotId() {
+        try {
+          localStorage.removeItem('edge-sync-chatbot-id')
+          localStorage.removeItem('edge-sync-chatbot-id-timestamp')
+        } catch (error) {
+          console.warn('无法清除保存的 ChatBot ID:', error)
+        }
+      }
+
       // 初始化
-      document.getElementById('chatbotIdDisplay').value = CHATBOT_ID
+      updateCurrentChatbotIdDisplay()
       log('🌐 Cloudflare Workers 测试仪表板已加载', 'success')
       log('📍 服务器地址: ' + SERVER_URL, 'info')
+
+      // 检查是否加载了保存的 ChatBot ID
+      const savedId = loadSavedChatbotId()
+      if (savedId && savedId === CHATBOT_ID) {
+        log(\`💾 已加载保存的 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+      } else {
+        log(\`🆕 使用新生成的 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+      }
 
       // 日志功能
       function log(message, type = 'info') {
@@ -373,6 +466,162 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
             entry.style.display = 'none'
           }
         })
+      }
+
+      // ChatBot ID 管理功能
+      function updateCurrentChatbotIdDisplay() {
+        document.getElementById('currentChatbotId').textContent = CHATBOT_ID
+
+        // 更新页面状态管理区域的显示
+        const pageStateElement = document.getElementById('pageStateChatbotId')
+        if (pageStateElement) {
+          pageStateElement.textContent = CHATBOT_ID
+        }
+
+        // 更新 Action 推送区域的显示
+        const actionElement = document.getElementById('actionChatbotId')
+        if (actionElement) {
+          actionElement.textContent = CHATBOT_ID
+        }
+
+        // 显示 ID 统计信息
+        const statsElement = document.getElementById('chatbotIdStats')
+        const idLength = CHATBOT_ID.length
+        const idType = CHATBOT_ID.startsWith('bot_') ? '随机生成' :
+                      CHATBOT_ID.startsWith('dashboard_') ? '默认生成' : '自定义'
+
+        statsElement.innerHTML = \`
+          📏 长度: \${idLength} 字符 | 🏷️ 类型: \${idType} |
+          ⏰ 设置时间: \${new Date().toLocaleTimeString()}
+        \`
+      }
+
+      function generateRandomId() {
+        const timestamp = Date.now()
+        const random = Math.random().toString(36).substring(2, 8)
+        const newId = \`bot_\${timestamp}_\${random}\`
+        document.getElementById('chatbotIdInput').value = newId
+        log(\`🎲 生成随机 ID: \${newId}\`, 'info')
+      }
+
+      function clearSavedId() {
+        clearSavedChatbotId()
+        log('🗑️ 已清除保存的 ChatBot ID', 'info')
+        log('💡 下次刷新页面将生成新的 ID', 'info')
+      }
+
+      // 验证 ChatBot ID 是否有效
+      function validateChatbotId() {
+        if (!CHATBOT_ID || CHATBOT_ID.trim() === '') {
+          log('❌ ChatBot ID 不能为空，请先设置一个有效的 ID', 'error')
+          return false
+        }
+
+        if (!/^[a-zA-Z0-9_-]+$/.test(CHATBOT_ID)) {
+          log('❌ ChatBot ID 格式无效，只能包含字母、数字、下划线和连字符', 'error')
+          return false
+        }
+
+        return true
+      }
+
+      function applyChatbotId() {
+        const selectElement = document.getElementById('chatbotIdSelect')
+        const inputElement = document.getElementById('chatbotIdInput')
+
+        let newId = ''
+
+        // 优先使用选择的 ID
+        if (selectElement.value) {
+          newId = selectElement.value
+          log(\`📋 选择了现有 ID: \${newId}\`, 'info')
+        } else if (inputElement.value.trim()) {
+          newId = inputElement.value.trim()
+          log(\`✏️ 输入了新 ID: \${newId}\`, 'info')
+        } else {
+          log('❌ 请选择或输入一个 ChatBot ID', 'error')
+          return
+        }
+
+        // 验证 ID 格式
+        if (!/^[a-zA-Z0-9_-]+$/.test(newId)) {
+          log('❌ ChatBot ID 只能包含字母、数字、下划线和连字符', 'error')
+          return
+        }
+
+        // 如果连接已建立，需要先断开
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+          log('⚠️ 检测到活跃连接，将先断开连接', 'warning')
+          disconnect()
+        }
+
+        // 更新全局 ID
+        const oldId = CHATBOT_ID
+        CHATBOT_ID = newId
+        updateCurrentChatbotIdDisplay()
+
+        // 保存到本地存储
+        saveChatbotId(newId)
+
+        // 清空输入框
+        inputElement.value = ''
+        selectElement.value = ''
+
+        log(\`✅ ChatBot ID 已更新: \${oldId} → \${newId}\`, 'success')
+        log('💾 ID 已保存到本地存储', 'info')
+        log('💡 现在可以重新建立连接', 'info')
+      }
+
+      async function refreshChatbotIds() {
+        log('🔄 正在获取现有的 ChatBot ID...', 'info')
+
+        try {
+          // 获取连接统计信息
+          const result = await apiCall('/admin/connections')
+
+          if (result.success && result.data.data && result.data.data.connections) {
+            const connections = result.data.data.connections
+            const chatbotIds = connections.map(conn => conn.chatbotId).filter(Boolean)
+
+            // 更新下拉列表
+            const selectElement = document.getElementById('chatbotIdSelect')
+
+            // 清空现有选项（保留默认选项）
+            selectElement.innerHTML = '<option value="">选择现有的 ChatBot ID</option>'
+
+            if (chatbotIds.length > 0) {
+              // 去重并排序
+              const uniqueIds = [...new Set(chatbotIds)].sort()
+
+              uniqueIds.forEach(id => {
+                const option = document.createElement('option')
+                option.value = id
+                option.textContent = \`\${id} \${id === CHATBOT_ID ? '(当前)' : ''}\`
+                selectElement.appendChild(option)
+              })
+
+              log(\`✅ 找到 \${uniqueIds.length} 个活跃的 ChatBot ID\`, 'success')
+            } else {
+              log('ℹ️ 当前没有活跃的连接', 'info')
+            }
+          } else {
+            log('⚠️ 无法获取连接信息', 'warning')
+          }
+
+          // 同时尝试获取 WebSocket 连接信息
+          const wsResult = await apiCall('/ws/connections')
+          if (wsResult.success && wsResult.data.data && wsResult.data.data.connections) {
+            const wsConnections = wsResult.data.data.connections
+            const wsChatbotIds = wsConnections.map(conn => conn.chatbotId).filter(Boolean)
+
+            if (wsChatbotIds.length > 0) {
+              log(\`📡 WebSocket 连接: \${wsChatbotIds.length} 个\`, 'info')
+            }
+          }
+
+        } catch (error) {
+          log(\`❌ 获取 ChatBot ID 失败: \${error.message}\`, 'error')
+        }
       }
 
       // 连接管理
@@ -449,9 +698,15 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           return
         }
 
+        if (!CHATBOT_ID || CHATBOT_ID.trim() === '') {
+          log('❌ 请先设置 ChatBot ID', 'error')
+          return
+        }
+
         log('🔌 正在连接 WebSocket...', 'info')
+        log(\`🤖 使用 ChatBot ID: \${CHATBOT_ID}\`, 'info')
         const wsUrl = \`\${WS_URL}/ws/connect/\${CHATBOT_ID}\`
-        log(\`连接地址: \${wsUrl}\`, 'info')
+        log(\`🌐 连接地址: \${wsUrl}\`, 'info')
 
         websocket = new WebSocket(wsUrl)
 
@@ -591,6 +846,10 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
       // 页面状态管理
       async function updatePageState() {
+        if (!validateChatbotId()) {
+          return
+        }
+
         const url = document.getElementById('pageUrl').value
         const title = document.getElementById('pageTitle').value
         const customDataText = document.getElementById('customData').value
@@ -599,6 +858,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           const customData = JSON.parse(customDataText)
 
           log('💾 更新页面状态...', 'info')
+          log(\`🤖 使用 ChatBot ID: \${CHATBOT_ID}\`, 'info')
 
           const result = await apiCall(\`/api/state/\${CHATBOT_ID}\`, {
             method: 'POST',
@@ -623,7 +883,12 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       }
 
       async function getPageState() {
+        if (!validateChatbotId()) {
+          return
+        }
+
         log('📖 获取页面状态...', 'info')
+        log(\`🤖 使用 ChatBot ID: \${CHATBOT_ID}\`, 'info')
 
         const result = await apiCall(\`/api/state/\${CHATBOT_ID}\`)
 
@@ -642,7 +907,12 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       }
 
       async function deletePageState() {
+        if (!validateChatbotId()) {
+          return
+        }
+
         log('🗑️ 删除页面状态...', 'info')
+        log(\`🤖 使用 ChatBot ID: \${CHATBOT_ID}\`, 'info')
 
         const result = await apiCall(\`/api/state/\${CHATBOT_ID}\`, {
           method: 'DELETE'
@@ -659,6 +929,10 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
       // Action 推送
       async function sendCustomAction() {
+        if (!validateChatbotId()) {
+          return
+        }
+
         const type = document.getElementById('actionType').value
         const target = document.getElementById('actionTarget').value
         const payloadText = document.getElementById('actionPayload').value
@@ -667,6 +941,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           const payload = JSON.parse(payloadText)
 
           log(\`🚀 发送 \${type} Action...\`, 'info')
+          log(\`🤖 目标 ChatBot ID: \${CHATBOT_ID}\`, 'info')
 
           const result = await apiCall(\`/api/action/\${CHATBOT_ID}\`, {
             method: 'POST',
@@ -690,7 +965,12 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       }
 
       async function sendQuickActions() {
+        if (!validateChatbotId()) {
+          return
+        }
+
         log('⚡ 发送快速测试 Actions...', 'info')
+        log(\`🤖 目标 ChatBot ID: \${CHATBOT_ID}\`, 'info')
 
         const actions = [
           { type: 'navigate', payload: { url: 'https://workers.cloudflare.com' } },
@@ -759,11 +1039,17 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       window.addEventListener('load', () => {
         log('🎉 页面加载完成，可以开始测试', 'success')
 
-        // 自动执行健康检查
+        // 自动执行健康检查和获取现有 ChatBot ID
         setTimeout(() => {
           getHealthCheck()
           getSystemStatus()
+          refreshChatbotIds()
         }, 1000)
+
+        // 定期刷新 ChatBot ID 列表（每30秒）
+        setInterval(() => {
+          refreshChatbotIds()
+        }, 30000)
       })
     </script>
   </body>
