@@ -13,7 +13,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Edge Sync State 完整测试仪表板 - Cloudflare Workers</title>
+    <title>Edge Sync State 测试仪表板 - RESTful API + 轮询模式</title>
     <style>
       * {
         margin: 0;
@@ -217,9 +217,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
   <body>
     <div class="header">
       <h1>🚀 Edge Sync State 测试仪表板</h1>
-      <p>Cloudflare Workers + KV 存储模式 <span class="environment-badge">EDGE COMPUTING</span></p>
+      <p>RESTful API + 轮询模式 <span class="environment-badge">NO WEBSOCKET</span></p>
       <p style="margin-top: 10px; font-size: 14px; color: rgba(255,255,255,0.8);">
-        💡 使用 KV 存储 + 轮询模式避免跨请求 I/O 限制
+        💡 纯 RESTful API + 轮询架构，更简单、更可靠
       </p>
     </div>
 
@@ -227,17 +227,17 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       <!-- 连接状态卡片 -->
       <div class="card">
         <h3 class="card-title">
-          🔗 连接状态
+          🔗 服务状态
           <div class="status-indicator" id="statusIndicator"></div>
         </h3>
         <div class="stats-grid">
           <div class="stat-item">
-            <div class="stat-value" id="connectionStatus">离线</div>
-            <div class="stat-label">WebSocket 状态</div>
+            <div class="stat-value" id="serviceStatus">未启动</div>
+            <div class="stat-label">服务状态</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value" id="connectionTime">0s</div>
-            <div class="stat-label">连接时长</div>
+            <div class="stat-value" id="serviceTime">0s</div>
+            <div class="stat-label">运行时长</div>
           </div>
           <div class="stat-item">
             <div class="stat-value" id="pollingStatus">未启动</div>
@@ -268,10 +268,10 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           </div>
         </div>
         <div class="button-row">
-          <button class="btn success" onclick="connect()">🔌 连接</button>
-          <button class="btn danger" onclick="disconnect()">❌ 断开</button>
-          <button class="btn warning" onclick="testConnection()">🧪 测试</button>
-          <button class="btn small" onclick="checkConnectionStatus()">🔍 状态</button>
+          <button class="btn success" onclick="startService()">� 启动服务</button>
+          <button class="btn danger" onclick="stopService()">🛑 停止服务</button>
+          <button class="btn warning" onclick="testService()">🧪 测试服务</button>
+          <button class="btn small" onclick="checkServiceStatus()">🔍 状态</button>
         </div>
         <div class="button-row">
           <button class="btn success" onclick="startActionPolling()">🔄 启动轮询</button>
