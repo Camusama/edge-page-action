@@ -49,8 +49,11 @@ export function loadConfig(env?: any): AppConfig {
   const envSource = env || (isCloudflareWorkers() ? {} : process.env)
 
   const config: AppConfig = {
-    cacheType: (envSource.CACHE_TYPE as 'redis' | 'kv') || (isCloudflareWorkers() ? 'kv' : 'redis'),
+    cacheType:
+      (envSource.CACHE_TYPE as 'redis' | 'kv' | 'postgres') ||
+      (isCloudflareWorkers() ? 'kv' : 'redis'),
     redisUrl: envSource.REDIS_URL,
+    postgresUrl: envSource.PG_DATABASE_URL,
     cachePrefix: envSource.CACHE_PREFIX || 'edge-sync',
     cacheTtl: parseInt(envSource.CACHE_TTL || '3600'),
     port: parseInt(envSource.PORT || '3000'),
@@ -66,6 +69,10 @@ export function loadConfig(env?: any): AppConfig {
 function validateConfig(config: AppConfig): void {
   if (config.cacheType === 'redis' && !config.redisUrl) {
     throw new Error('REDIS_URL environment variable is required when using Redis storage')
+  }
+
+  if (config.cacheType === 'postgres' && !config.postgresUrl && !isCloudflareWorkers()) {
+    throw new Error('PG_DATABASE_URL environment variable is required when using PostgreSQL storage in Node.js environment')
   }
 
   if (config.cacheType === 'kv' && !isCloudflareWorkers()) {

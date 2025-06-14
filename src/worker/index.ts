@@ -6,13 +6,10 @@
  */
 
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { loadConfig } from '../shared/config'
 import { WorkerStorageFactory } from './storage/factory'
-import { WebSocketConnectionManager } from './connection/websocket-manager'
 import { SyncService } from '../shared/services/sync-service'
 import { createApiRoutes } from '../shared/routes/api'
-import { createWebSocketRoutes } from './routes/websocket'
 import { createAdminRoutes } from '../shared/routes/admin'
 import { createOpenAPIRoute } from '../shared/routes/openapi'
 import { createStaticRoutesForWorker } from './routes/static-worker'
@@ -30,10 +27,20 @@ app.use('*', async (c, next) => {
   const origin = c.req.header('Origin')
   const allowedOrigins = corsOrigins.includes('*') ? ['*'] : corsOrigins
 
+  console.log(`CORS: Request from origin: ${origin}`)
+  console.log(`CORS: Allowed origins: ${corsOrigins.join(', ')}`)
+
+  // 设置 Access-Control-Allow-Origin
   if (origin && (allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
-    c.header('Access-Control-Allow-Origin', allowedOrigins.includes('*') ? '*' : origin)
+    const allowOrigin = allowedOrigins.includes('*') ? '*' : origin
+    c.header('Access-Control-Allow-Origin', allowOrigin)
+    console.log(`CORS: Set Access-Control-Allow-Origin to: ${allowOrigin}`)
+  } else if (allowedOrigins.includes('*')) {
+    c.header('Access-Control-Allow-Origin', '*')
+    console.log('CORS: Set Access-Control-Allow-Origin to: *')
   }
 
+  // 设置其他 CORS 头
   c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   c.header(
     'Access-Control-Allow-Headers',
@@ -41,9 +48,34 @@ app.use('*', async (c, next) => {
   )
   c.header('Access-Control-Max-Age', '86400')
 
-  // 处理 OPTIONS 预检请求
+  // 处理 OPTIONS 预检请求 - 确保 CORS 头已设置
   if (c.req.method === 'OPTIONS') {
-    return c.text('', 204)
+    console.log('CORS: Handling OPTIONS preflight request')
+    console.log('CORS: Headers set:', {
+      'Access-Control-Allow-Origin': c.res.headers.get('Access-Control-Allow-Origin'),
+      'Access-Control-Allow-Methods': c.res.headers.get('Access-Control-Allow-Methods'),
+      'Access-Control-Allow-Headers': c.res.headers.get('Access-Control-Allow-Headers'),
+    })
+
+    // 创建响应并确保 CORS 头被包含
+    const response = new Response(null, { status: 204 })
+
+    // 手动复制 CORS 头到响应
+    if (origin && (allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
+      const allowOrigin = allowedOrigins.includes('*') ? '*' : origin
+      response.headers.set('Access-Control-Allow-Origin', allowOrigin)
+    } else if (allowedOrigins.includes('*')) {
+      response.headers.set('Access-Control-Allow-Origin', '*')
+    }
+
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    response.headers.set(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, Cache-Control, Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version'
+    )
+    response.headers.set('Access-Control-Max-Age', '86400')
+
+    return response
   }
 
   await next()
@@ -51,7 +83,6 @@ app.use('*', async (c, next) => {
 
 // 初始化存储和服务
 let storage: any
-let connectionManager: WebSocketConnectionManager
 let syncService: SyncService
 let currentConfig: any
 
@@ -60,17 +91,11 @@ async function initializeServices(env: CloudflareBindings) {
     // 根据环境加载配置
     currentConfig = loadConfig(env)
 
-    // 强制使用 KV
-    currentConfig.cacheType = 'kv'
-
-    // 创建 KV 存储适配器
+    // 创建存储适配器（根据配置决定使用 KV 还是 PostgreSQL）
     storage = await WorkerStorageFactory.create(currentConfig, env)
 
-    // 创建连接管理器
-    connectionManager = new WebSocketConnectionManager()
-
-    // 创建同步服务
-    syncService = new SyncService(storage, connectionManager)
+    // 创建同步服务（不需要连接管理器）
+    syncService = new SyncService(storage)
 
     console.log('Cloudflare Workers services initialized successfully')
     console.log(`Cache type: ${currentConfig.cacheType}`)
@@ -92,12 +117,26 @@ app.get('/', c => {
     environment: 'Cloudflare Workers',
     timestamp: Date.now(),
     config: {
-      cacheType: 'kv',
+      cacheType: config.cacheType,
       cachePrefix: config.cachePrefix,
       cacheTtl: config.cacheTtl,
+      corsOrigins: config.corsOrigins,
     },
   })
 })
+
+// CORS 测试端点
+app.get('/cors-test', async c => {
+  const config = currentConfig || loadConfig(c.env)
+  return c.json({
+    message: 'CORS test endpoint',
+    corsOrigins: config.corsOrigins,
+    requestOrigin: c.req.header('Origin'),
+    timestamp: Date.now(),
+  })
+})
+
+// 重复的 CORS 中间件已移除，使用上面的动态 CORS 中间件
 
 // 初始化中间件
 app.use('*', async (c, next) => {
@@ -128,34 +167,15 @@ app.use('/api/*', async c => {
   return response
 })
 
-// 动态挂载 WebSocket 路由
-app.use('/ws/*', async c => {
-  if (!connectionManager) {
-    await initializeServices(c.env)
-  }
-  const config = currentConfig || loadConfig(c.env)
-  const wsRoutes = createWebSocketRoutes(connectionManager, config.corsOrigins)
-
-  // 创建新的请求，去掉 /ws 前缀
-  const url = new URL(c.req.url)
-  url.pathname = url.pathname.replace(/^\/ws/, '') || '/'
-  const newRequest = new Request(url.toString(), {
-    method: c.req.method,
-    headers: c.req.header(),
-    body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
-  })
-
-  const response = await wsRoutes.fetch(newRequest, c.env || {})
-  return response
-})
+// WebSocket 功能已移除，改为纯 RESTful API 架构
 
 // 动态挂载管理路由
 app.use('/admin/*', async c => {
-  if (!syncService || !connectionManager) {
+  if (!syncService) {
     await initializeServices(c.env)
   }
   const config = currentConfig || loadConfig(c.env)
-  const adminRoutes = createAdminRoutes(syncService, connectionManager, config.corsOrigins)
+  const adminRoutes = createAdminRoutes(syncService, null, config.corsOrigins)
 
   // 创建新的请求，去掉 /admin 前缀
   const url = new URL(c.req.url)

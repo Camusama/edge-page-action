@@ -5,7 +5,7 @@ import type { SyncService } from '../services/sync-service'
 
 export function createAdminRoutes(
   syncService: SyncService,
-  connectionManager: ConnectionManager,
+  connectionManager: ConnectionManager | null,
   corsOrigins: string[]
 ) {
   const admin = new Hono()
@@ -22,7 +22,7 @@ export function createAdminRoutes(
 
   // 服务检查中间件
   admin.use('*', async (c, next) => {
-    if (!syncService || !connectionManager) {
+    if (!syncService) {
       return c.json(
         {
           success: false,
@@ -60,18 +60,12 @@ export function createAdminRoutes(
 
   // 获取所有活跃连接
   admin.get('/connections', c => {
-    const connections = connectionManager.getConnectionInfo()
     const response: ApiResponse = {
       success: true,
       data: {
-        total: connections.length,
-        connections: connections.map((conn: any) => ({
-          chatbotId: conn.chatbotId,
-          connectedAt: new Date(conn.connectedAt).toISOString(),
-          lastActivity: new Date(conn.lastActivity || conn.connectedAt).toISOString(),
-          duration: Date.now() - conn.connectedAt,
-          type: conn.type || 'unknown',
-        })),
+        total: 0,
+        connections: [],
+        note: 'WebSocket functionality removed - using polling-based architecture',
       },
       timestamp: Date.now(),
     }
@@ -91,11 +85,9 @@ export function createAdminRoutes(
       return c.json(response, 400)
     }
 
-    connectionManager.removeConnection(chatbotId)
-
     const response: ApiResponse = {
       success: true,
-      data: { message: `Connection ${chatbotId} disconnected` },
+      data: { message: `Connection management not available - WebSocket functionality removed` },
       timestamp: Date.now(),
     }
     return c.json(response)
@@ -116,15 +108,9 @@ export function createAdminRoutes(
         return c.json(response, 400)
       }
 
-      connectionManager.sendToAll({
-        type,
-        data: { message, from: 'admin' },
-        timestamp: Date.now(),
-      })
-
       const response: ApiResponse = {
         success: true,
-        data: { message: 'Broadcast sent successfully' },
+        data: { message: 'Broadcast not available - WebSocket functionality removed' },
         timestamp: Date.now(),
       }
       return c.json(response)
@@ -140,20 +126,13 @@ export function createAdminRoutes(
 
   // 清理非活跃连接
   admin.post('/cleanup', c => {
-    const before = connectionManager.getConnectionCount()
-
-    // 这里可以添加清理逻辑，比如强制清理超时连接
-    // 目前连接管理器已经有自动清理机制
-
-    const after = connectionManager.getConnectionCount()
-
     const response: ApiResponse = {
       success: true,
       data: {
-        message: 'Cleanup completed',
-        connectionsBefore: before,
-        connectionsAfter: after,
-        cleaned: before - after,
+        message: 'Cleanup not needed - WebSocket functionality removed',
+        connectionsBefore: 0,
+        connectionsAfter: 0,
+        cleaned: 0,
       },
       timestamp: Date.now(),
     }

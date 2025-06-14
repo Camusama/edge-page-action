@@ -2,15 +2,24 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "edge-sync-state",
   "main": "src/worker/index.ts",
-  "compatibility_date": "2025-06-12",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
   "kv_namespaces": [
     {
       "binding": "EDGE_SYNC_KV",
-      "id": "6130db5f700d441d857f23cb9439a7f3"
+      "id": "6130db5f700d441d857f23cb9439a7f3",
+      "preview_id": "e5d1384acbdc42318ba57102b4cc23c0"
+    }
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "cbec1bf83b1f4b2abc943e52014788cd",
+      "localConnectionString": "postgresql://postgres:password@localhost:5432/postgres"
     }
   ],
   "vars": {
-    "CACHE_TYPE": "kv",
+    "CACHE_TYPE": "postgres",
     "CACHE_PREFIX": "edge-sync",
     "CACHE_TTL": "3600",
     "CORS_ORIGINS": "https://dev.marquez.cc,http://devnote.marquez.cc/,http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:8082,http://10.100.129.36:3000,http://10.100.129.36:8082,*"
@@ -45,5 +54,3 @@
   //   "head_sampling_rate": 1
   // }
 }
-
-

@@ -271,5 +271,74 @@ export function createApiRoutes(syncService: SyncService, corsOrigins: string[])
     return c.json(response)
   })
 
+  // 存储统计信息
+  api.get('/storage/stats', async c => {
+    try {
+      // 检查存储是否支持统计信息
+      if (typeof (syncService as any).storage?.getStats === 'function') {
+        const stats = await (syncService as any).storage.getStats()
+
+        // 获取所有键的完整列表
+        if (typeof (syncService as any).storage?.listKeys === 'function') {
+          const allKeys = await (syncService as any).storage.listKeys()
+          stats.keys = allKeys
+          stats.totalKeys = allKeys.length
+        }
+
+        const response: ApiResponse = {
+          success: true,
+          data: stats,
+          timestamp: Date.now(),
+        }
+        return c.json(response)
+      } else {
+        const response: ApiResponse = {
+          success: false,
+          error: 'Statistics not supported by current storage adapter',
+          timestamp: Date.now(),
+        }
+        return c.json(response, 501)
+      }
+    } catch (error) {
+      const response: ApiResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: Date.now(),
+      }
+      return c.json(response, 500)
+    }
+  })
+
+  // 清空所有存储数据
+  api.delete('/storage/clear', async c => {
+    try {
+      // 检查存储是否支持清空操作
+      if (typeof (syncService as any).storage?.clear === 'function') {
+        await (syncService as any).storage.clear()
+
+        const response: ApiResponse = {
+          success: true,
+          data: { message: 'All storage data cleared successfully' },
+          timestamp: Date.now(),
+        }
+        return c.json(response)
+      } else {
+        const response: ApiResponse = {
+          success: false,
+          error: 'Clear operation not supported by current storage adapter',
+          timestamp: Date.now(),
+        }
+        return c.json(response, 501)
+      }
+    } catch (error) {
+      const response: ApiResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: Date.now(),
+      }
+      return c.json(response, 500)
+    }
+  })
+
   return api
 }
