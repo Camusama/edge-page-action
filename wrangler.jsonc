@@ -15,7 +15,7 @@
     {
       "binding": "HYPERDRIVE",
       "id": "cbec1bf83b1f4b2abc943e52014788cd",
-      "localConnectionString": "postgresql://postgres:password@localhost:5432/postgres"
+      "localConnectionString": "postgres://postgres:password@localhost:5432/postgres"
     }
   ],
   "vars": {

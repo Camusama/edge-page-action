@@ -21,28 +21,24 @@ export class WorkerPostgresStorageAdapter extends BaseStorageAdapter {
    */
   private async executeQuery(query: string, params: any[] = []): Promise<any> {
     try {
-      // 使用 Hyperdrive 的 connectionString 和 postgres 驱动
-      const postgres = (await import('postgres')).default
-      const sql = postgres(this.hyperdrive.connectionString, {
-        // Workers 限制并发外部连接数，因此限制连接池大小
-        max: 1,
-        idle_timeout: 20,
-        max_lifetime: 60 * 30,
-
-        ssl: {
-          rejectUnauthorized: false,
-        },
+      // 使用 pg 包的 Client 类，参考成功的 hyperdrive-tutorial 示例
+      const { Client } = await import('pg')
+      const client = new Client({
+        connectionString: this.hyperdrive.connectionString
       })
-
+      
+      // 连接到数据库
+      await client.connect()
+      
       // 执行查询
-      const result = await sql.unsafe(query, params)
-
+      const result = await client.query(query, params)
+      
       // 关闭连接
-      await sql.end()
-
+      await client.end()
+      
       return {
-        rows: Array.isArray(result) ? result : [],
-        rowCount: Array.isArray(result) ? result.length : 0,
+        rows: result.rows || [],
+        rowCount: result.rowCount || 0
       }
     } catch (error) {
       console.error('PostgreSQL query error:', error)
@@ -162,9 +158,15 @@ export class WorkerPostgresStorageAdapter extends BaseStorageAdapter {
     }
 
     try {
-      return JSON.parse(result.rows[0].value)
+      const value = result.rows[0].value
+      // 如果 value 已经是对象，直接返回；如果是字符串，则解析
+      if (typeof value === 'string') {
+        return JSON.parse(value)
+      } else {
+        return value
+      }
     } catch (error) {
-      console.error('Error parsing JSON from PostgreSQL:', error)
+      console.error('Error parsing JSON from PostgreSQL:', error, 'Raw value:', result.rows[0].value)
       return null
     }
   }
@@ -235,9 +237,15 @@ export class WorkerPostgresStorageAdapter extends BaseStorageAdapter {
     if (result.rows) {
       result.rows.forEach((row: any) => {
         try {
-          resultMap.set(row.key, JSON.parse(row.value))
+          const value = row.value
+          // 如果 value 已经是对象，直接使用；如果是字符串，则解析
+          if (typeof value === 'string') {
+            resultMap.set(row.key, JSON.parse(value))
+          } else {
+            resultMap.set(row.key, value)
+          }
         } catch (error) {
-          console.error('Error parsing JSON from PostgreSQL:', error)
+          console.error('Error parsing JSON from PostgreSQL:', error, 'Raw value:', row.value)
           resultMap.set(row.key, null)
         }
       })
@@ -383,9 +391,15 @@ export class WorkerPostgresStorageAdapter extends BaseStorageAdapter {
       ? result.rows
           .map((row: any) => {
             try {
-              return JSON.parse(row.action)
+              const action = row.action
+              // 如果 action 已经是对象，直接使用；如果是字符串，则解析
+              if (typeof action === 'string') {
+                return JSON.parse(action)
+              } else {
+                return action
+              }
             } catch (error) {
-              console.error('Error parsing action JSON:', error)
+              console.error('Error parsing action JSON:', error, 'Raw action:', row.action)
               return null
             }
           })
