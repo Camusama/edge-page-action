@@ -49,8 +49,11 @@ export function loadConfig(env?: any): AppConfig {
   const envSource = env || (isCloudflareWorkers() ? {} : process.env)
 
   const config: AppConfig = {
-    cacheType: (envSource.CACHE_TYPE as 'redis' | 'kv') || (isCloudflareWorkers() ? 'kv' : 'redis'),
+    cacheType:
+      (envSource.CACHE_TYPE as 'redis' | 'kv' | 'postgres' | 'do') ||
+      (isCloudflareWorkers() ? 'kv' : 'redis'),
     redisUrl: envSource.REDIS_URL,
+    postgresUrl: envSource.PG_DATABASE_URL,
     cachePrefix: envSource.CACHE_PREFIX || 'edge-sync',
     cacheTtl: parseInt(envSource.CACHE_TTL || '3600'),
     port: parseInt(envSource.PORT || '3000'),
@@ -68,8 +71,16 @@ function validateConfig(config: AppConfig): void {
     throw new Error('REDIS_URL environment variable is required when using Redis storage')
   }
 
+  if (config.cacheType === 'postgres' && !config.postgresUrl && !isCloudflareWorkers()) {
+    throw new Error('PG_DATABASE_URL environment variable is required when using PostgreSQL storage in Node.js environment')
+  }
+
   if (config.cacheType === 'kv' && !isCloudflareWorkers()) {
     console.warn('KV storage is designed for Cloudflare Workers environment')
+  }
+
+  if (config.cacheType === 'do' && !isCloudflareWorkers()) {
+    throw new Error('Durable Objects storage is only available in Cloudflare Workers environment')
   }
 
   if (config.cacheTtl < 0) {

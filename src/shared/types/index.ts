@@ -130,17 +130,21 @@ export interface StorageAdapter {
 // 应用配置接口
 export interface AppConfig {
   port: number
-  cacheType: 'redis' | 'kv'
+  cacheType: 'redis' | 'kv' | 'postgres' | 'do'
   cachePrefix: string
   cacheTtl: number
   corsOrigins: string[]
   redisUrl?: string
+  postgresUrl?: string
 }
 
 // Cloudflare Workers 绑定接口
 export interface CloudflareBindings {
   EDGE_SYNC_KV: KVNamespace
+  HYPERDRIVE?: any // Hyperdrive 绑定用于 PostgreSQL 连接
+  EDGE_SYNC_DO?: any // Durable Objects 绑定用于强一致性存储
   REDIS_URL?: string
+  PG_DATABASE_URL?: string
   CACHE_PREFIX?: string
   CACHE_TTL?: string
   CORS_ORIGINS?: string

@@ -271,8 +271,8 @@ export function createApiRoutes(syncService: SyncService, corsOrigins: string[])
     return c.json(response)
   })
 
-  // KV 存储统计信息
-  api.get('/kv/stats', async c => {
+  // 存储统计信息
+  api.get('/storage/stats', async c => {
     try {
       // 检查存储是否支持统计信息
       if (typeof (syncService as any).storage?.getStats === 'function') {
@@ -294,7 +294,7 @@ export function createApiRoutes(syncService: SyncService, corsOrigins: string[])
       } else {
         const response: ApiResponse = {
           success: false,
-          error: 'KV statistics not supported by current storage adapter',
+          error: 'Statistics not supported by current storage adapter',
           timestamp: Date.now(),
         }
         return c.json(response, 501)
@@ -309,8 +309,8 @@ export function createApiRoutes(syncService: SyncService, corsOrigins: string[])
     }
   })
 
-  // 清空所有 KV 数据
-  api.delete('/kv/clear', async c => {
+  // 清空所有存储数据
+  api.delete('/storage/clear', async c => {
     try {
       // 检查存储是否支持清空操作
       if (typeof (syncService as any).storage?.clear === 'function') {
@@ -318,14 +318,14 @@ export function createApiRoutes(syncService: SyncService, corsOrigins: string[])
 
         const response: ApiResponse = {
           success: true,
-          data: { message: 'All KV data cleared successfully' },
+          data: { message: 'All storage data cleared successfully' },
           timestamp: Date.now(),
         }
         return c.json(response)
       } else {
         const response: ApiResponse = {
           success: false,
-          error: 'KV clear operation not supported by current storage adapter',
+          error: 'Clear operation not supported by current storage adapter',
           timestamp: Date.now(),
         }
         return c.json(response, 501)

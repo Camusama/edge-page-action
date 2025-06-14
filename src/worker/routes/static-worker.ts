@@ -255,10 +255,10 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           </div>
         </div>
         <div class="input-group">
-          <label>从 KV 存储选择 ChatBot ID:</label>
+          <label>从存储选择 ChatBot ID:</label>
           <div class="flex-row">
             <select id="chatbotIdSelect">
-              <option value="">从 KV 键中选择 ChatBot ID</option>
+              <option value="">从存储键中选择 ChatBot ID</option>
             </select>
             <button class="btn small" onclick="refreshChatbotIds()">🔄 刷新</button>
           </div>
@@ -274,9 +274,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         </div>
         <div class="button-row">
           <button class="btn success" onclick="selectChatbotId()">✅ 确认选择</button>
-          <button class="btn" onclick="previewChatbotData()">�️ 预览数据</button>
+          <button class="btn" onclick="previewChatbotData()">👁️ 预览数据</button>
           <button class="btn warning" onclick="testChatbotConnection()">🧪 测试连接</button>
-          <button class="btn small danger" onclick="clearSavedId()">�️ 清除本地</button>
+          <button class="btn small danger" onclick="clearSavedId()">🗑️ 清除本地</button>
         </div>
         <div class="button-row">
           <button class="btn warning" onclick="enableActionPolling()">⚡ 启用轮询</button>
@@ -291,13 +291,13 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         </div>
       </div>
 
-      <!-- KV 存储监控卡片 -->
+      <!-- 存储监控卡片 -->
       <div class="card">
-        <h3 class="card-title">🗂️ KV 存储监控</h3>
+        <h3 class="card-title">💾 存储监控</h3>
         <div class="stats-grid">
           <div class="stat-item">
             <div class="stat-value" id="kvKeysCount">0</div>
-            <div class="stat-label">KV 键总数</div>
+            <div class="stat-label">存储记录数</div>
           </div>
           <div class="stat-item">
             <div class="stat-value" id="kvPrefix">-</div>
@@ -313,10 +313,10 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           </div>
         </div>
         <div class="button-row">
-          <button class="btn" onclick="getAllKVKeys()">🗂 获取所有键</button>
-          <button class="btn" onclick="getKVStats()">📊 存储统计</button>
-          <button class="btn" onclick="testKVStorage()">🔧 测试 KV</button>
-          <button class="btn warning" onclick="clearAllKVData()">🗑️ 清空 KV</button>
+          <button class="btn" onclick="getAllStorageKeys()">🗂 获取所有键</button>
+          <button class="btn" onclick="getStorageStats()">📊 存储统计</button>
+          <button class="btn" onclick="testStorage()">🔧 测试存储</button>
+          <button class="btn warning" onclick="clearAllStorageData()">🗑️ 清空数据</button>
         </div>
         <div id="kvKeysDisplay" class="response-display" style="max-height: 300px; overflow-y: auto;"></div>
         <div id="systemResponse" class="response-display"></div>
@@ -370,7 +370,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         </div>
         <div class="input-group">
           <label>Action 数据 (JSON):</label>
-          <textarea id="actionPayload" rows="2">{"url": "https://workers.cloudflare.com", "message": "Cloudflare Workers 测试"}</textarea>
+          <textarea id="actionPayload" rows="2">{"url": "/monitor/esxi", "message": "Cloudflare Workers 测试"}</textarea>
         </div>
         <div class="button-row">
           <button class="btn success" onclick="sendCustomAction()">🚀 发送 Action</button>
@@ -455,9 +455,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       // 检查是否加载了保存的 ChatBot ID
       const savedId = loadSavedChatbotId()
       if (savedId && savedId === CHATBOT_ID) {
-        log(\`💾 已加载保存的 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+        log('💾 已加载保存的 ChatBot ID: ' + CHATBOT_ID, 'info')
       } else {
-        log(\`🆕 使用新生成的 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+        log('🆕 使用新生成的 ChatBot ID: ' + CHATBOT_ID, 'info')
       }
 
       // 日志功能
@@ -465,8 +465,8 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         const container = document.getElementById('logContainer')
         const timestamp = new Date().toLocaleTimeString()
         const entry = document.createElement('div')
-        entry.className = \`log-entry \${type}\`
-        entry.innerHTML = \`<span style="color: #888;">[\${timestamp}]</span> \${message}\`
+        entry.className = 'log-entry ' + type
+        entry.innerHTML = '<span style="color: #888;">[' + timestamp + ']</span> ' + message
 
         if (logFilter === 'all' || logFilter === type) {
           entry.style.display = 'block'
@@ -487,7 +487,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
       function toggleAutoScroll() {
         autoScroll = !autoScroll
-        log(\`自动滚动已\${autoScroll ? '开启' : '关闭'}\`, 'info')
+        log('自动滚动已' + (autoScroll ? '开启' : '关闭'), 'info')
       }
 
       function filterLogs(type) {
@@ -524,119 +524,264 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         const idType = CHATBOT_ID.startsWith('bot_') ? '随机生成' :
                       CHATBOT_ID.startsWith('dashboard_') ? '默认生成' : '自定义'
 
-        statsElement.innerHTML = \`
-          📏 长度: \${idLength} 字符 | 🏷️ 类型: \${idType} |
-          ⏰ 设置时间: \${new Date().toLocaleTimeString()}
-        \`
+        statsElement.innerHTML = '📏 长度: ' + idLength + ' 字符 | 🏷️ 类型: ' + idType + ' | ⏰ 设置时间: ' + new Date().toLocaleTimeString()
       }
 
       function generateRandomId() {
         const timestamp = Date.now()
         const random = Math.random().toString(36).substring(2, 8)
-        const newId = \`bot_\${timestamp}_\${random}\`
+        const newId = 'bot_' + timestamp + '_' + random
         document.getElementById('chatbotIdInput').value = newId
-        log(\`🎲 生成随机 ID: \${newId}\`, 'info')
+        log('🎲 生成随机 ID: ' + newId, 'info')
       }
 
       function clearSavedId() {
         clearSavedChatbotId()
         log('🗑️ 已清除保存的 ChatBot ID', 'info')
-        log('💡 下次刷新页面将生成新的 ID', 'info')
-      }
-
-      // 验证 ChatBot ID 是否有效
-      function validateChatbotId() {
-        if (!CHATBOT_ID || CHATBOT_ID.trim() === '') {
-          log('❌ ChatBot ID 不能为空，请先设置一个有效的 ID', 'error')
-          return false
-        }
-
-        if (!/^[a-zA-Z0-9_-]+$/.test(CHATBOT_ID)) {
-          log('❌ ChatBot ID 格式无效，只能包含字母、数字、下划线和连字符', 'error')
-          return false
-        }
-
-        return true
       }
 
       function applyChatbotId() {
-        const selectElement = document.getElementById('chatbotIdSelect')
         const inputElement = document.getElementById('chatbotIdInput')
-
+        const selectElement = document.getElementById('chatbotIdSelect')
         let newId = ''
 
-        // 优先使用选择的 ID
         if (selectElement.value) {
           newId = selectElement.value
-          log(\`📋 选择了现有 ID: \${newId}\`, 'info')
+          log('📋 选择了现有 ID: ' + newId, 'info')
         } else if (inputElement.value.trim()) {
           newId = inputElement.value.trim()
-          log(\`✏️ 输入了新 ID: \${newId}\`, 'info')
+          log('✏️ 输入了新 ID: ' + newId, 'info')
         } else {
           log('❌ 请选择或输入一个 ChatBot ID', 'error')
           return
         }
 
-        // 验证 ID 格式
-        if (!/^[a-zA-Z0-9_-]+$/.test(newId)) {
-          log('❌ ChatBot ID 只能包含字母、数字、下划线和连字符', 'error')
+        if (newId === CHATBOT_ID) {
+          log('⚠️ 新 ID 与当前 ID 相同', 'warning')
           return
         }
 
-        // 如果连接已建立，需要先断开
-        if (websocket && websocket.readyState === WebSocket.OPEN) {
-          log('⚠️ 检测到活跃连接，将先断开连接', 'warning')
-          disconnect()
-        }
-
-        // 更新全局 ID
         const oldId = CHATBOT_ID
         CHATBOT_ID = newId
         updateCurrentChatbotIdDisplay()
 
         // 保存到本地存储
-        saveChatbotId(newId)
+        saveChatbotId(CHATBOT_ID)
 
-        // 清空输入框
+        // 清空输入框和选择框
         inputElement.value = ''
         selectElement.value = ''
 
-        log(\`✅ ChatBot ID 已更新: \${oldId} → \${newId}\`, 'success')
+        log('✅ ChatBot ID 已更新: ' + oldId + ' → ' + newId, 'success')
         log('💾 ID 已保存到本地存储', 'info')
         log('💡 现在可以重新建立连接', 'info')
       }
 
-      async function refreshChatbotIds() {
-    log('🔄 正在从 KV 存储获取所有键...', 'info')
+      function selectChatbotId() {
+        applyChatbotId()
+      }
 
-    try {
-        // 从 KV 存储获取所有键
-        const result = await apiCall('/api/kv/stats')
+      function refreshChatbotIds() {
+        getAllStorageKeys()
+      }
 
-        if (result.success && result.data.data && result.data.data.keys) {
-            const allKeys = result.data.data.keys
-            const selectElement = document.getElementById('chatbotIdSelect')
+      function previewChatbotData() {
+        log('🔍 预览 ChatBot ID: ' + CHATBOT_ID + ' 的数据...', 'info')
+        getPageState()
+        checkQueuedActions()
+      }
 
-            // 清空现有选项（保留默认选项）
-            selectElement.innerHTML = '<option value="">选择 KV 存储中的键</option>'
+      function testChatbotConnection() {
+        log('🧪 测试 ChatBot ID: ' + CHATBOT_ID + ' 的连接...', 'info')
+        checkConnectionStatus()
+      }
 
-            if (allKeys.length > 0) {
-                // 直接显示所有键
-                allKeys.forEach(key => {
-                    const parts = key.split(':')
-                    const lastPart = parts[parts.length - 1]
-                    const option = document.createElement('option')
-                    option.value = lastPart
-                    option.textContent = lastPart
-                    selectElement.appendChild(option)
+      // 获取所有存储键
+      async function getAllStorageKeys() {
+        log('🔍 获取所有存储键...', 'info')
+
+        try {
+          const result = await apiCall('/api/storage/stats')
+
+          if (result.success && result.data.data) {
+            const data = result.data.data
+            const keys = data.keys || []
+
+            // 更新统计信息
+            document.getElementById('kvKeysCount').textContent = data.totalKeys || keys.length
+            document.getElementById('kvPrefix').textContent = data.prefix || 'edge-sync'
+            document.getElementById('kvTtl').textContent = data.ttl ? data.ttl + 's' : '3600s'
+            document.getElementById('kvLastUpdate').textContent = new Date().toLocaleTimeString()
+
+            // 显示键列表
+            const keysDisplay = document.getElementById('kvKeysDisplay')
+            if (keys.length > 0) {
+              let keysHtml = '<strong>存储键列表:</strong><br>'
+
+              // 按类型分组显示
+              const pageStateKeys = keys.filter(key => key.startsWith('page_state:'))
+              const actionQueueKeys = keys.filter(key => key.startsWith('action_queue:'))
+              const otherKeys = keys.filter(key => !key.startsWith('page_state:') && !key.startsWith('action_queue:'))
+
+              if (pageStateKeys.length > 0) {
+                keysHtml += '<br><strong>📄 页面状态键 (' + pageStateKeys.length + '):</strong><br>'
+                pageStateKeys.forEach(key => {
+                  const chatbotId = key.replace('page_state:', '')
+                  keysHtml += '<span style="font-family: monospace; color: #2196f3; margin-left: 10px;">' + key + '</span> → ChatBot: <strong>' + chatbotId + '</strong><br>'
                 })
+              }
 
-                log(\`✅ 从 KV 存储找到 \${allKeys.length} 个键\`, 'success')
+              if (actionQueueKeys.length > 0) {
+                keysHtml += '<br><strong>⚡ Action 队列键 (' + actionQueueKeys.length + '):</strong><br>'
+                actionQueueKeys.forEach(key => {
+                  const chatbotId = key.replace('action_queue:', '')
+                  keysHtml += '<span style="font-family: monospace; color: #ff9800; margin-left: 10px;">' + key + '</span> → ChatBot: <strong>' + chatbotId + '</strong><br>'
+                })
+              }
+
+              if (otherKeys.length > 0) {
+                keysHtml += '<br><strong>🔧 其他键 (' + otherKeys.length + '):</strong><br>'
+                otherKeys.forEach(key => {
+                  keysHtml += '<span style="font-family: monospace; color: #666; margin-left: 10px;">' + key + '</span><br>'
+                })
+              }
+
+              keysDisplay.innerHTML = keysHtml
+              keysDisplay.style.display = 'block'
+
+              log('✅ 获取到 ' + keys.length + ' 个存储键', 'success')
+
+              // 更新 ChatBot ID 选择框
+              const selectElement = document.getElementById('chatbotIdSelect')
+              selectElement.innerHTML = '<option value="">从存储键中选择 ChatBot ID</option>'
+
+              const chatbotIds = new Set()
+              pageStateKeys.forEach(key => {
+                const id = key.replace('page_state:', '')
+                chatbotIds.add(id)
+              })
+              actionQueueKeys.forEach(key => {
+                const id = key.replace('action_queue:', '')
+                chatbotIds.add(id)
+              })
+
+              Array.from(chatbotIds).sort().forEach(id => {
+                const option = document.createElement('option')
+                option.value = id
+                option.textContent = id
+                selectElement.appendChild(option)
+              })
+
+              document.getElementById('availableIds').textContent = chatbotIds.size
+              log('✅ 从存储找到 ' + chatbotIds.size + ' 个 ChatBot ID', 'success')
             } else {
-                log('ℹ️ KV 存储中暂无数据', 'info')
+              keysDisplay.innerHTML = '<strong>📭 存储为空</strong>'
+              keysDisplay.style.display = 'block'
+              log('📭 存储中没有数据', 'info')
             }
-        } else {
-            log('⚠️ 无法获取 KV 存储信息', 'warning')
+          } else {
+            log('❌ 获取存储键失败', 'error')
+          }
+
+          showResponse('systemResponse', result)
+        } catch (error) {
+          log('❌ 获取存储键错误: ' + error.message, 'error')
+        }
+      }
+
+      // 获取存储统计信息
+      async function getStorageStats() {
+        log('📊 获取存储统计信息...', 'info')
+
+        try {
+          const result = await apiCall('/api/storage/stats')
+
+          if (result.success && result.data.data) {
+            const data = result.data.data
+
+            // 更新统计信息显示
+            document.getElementById('kvKeysCount').textContent = data.totalKeys || 0
+            document.getElementById('kvPrefix').textContent = data.prefix || 'edge-sync'
+            document.getElementById('kvTtl').textContent = data.ttl ? data.ttl + 's' : '3600s'
+            document.getElementById('kvLastUpdate').textContent = new Date().toLocaleTimeString()
+
+            log('✅ 存储统计信息获取成功', 'success')
+            log('📊 总键数: ' + (data.totalKeys || 0), 'info')
+            log('🏷️ 键前缀: ' + (data.prefix || 'edge-sync'), 'info')
+            log('⏰ 默认 TTL: ' + (data.ttl || 3600) + 's', 'info')
+          } else {
+            log('❌ 获取存储统计信息失败', 'error')
+          }
+
+          showResponse('systemResponse', result)
+        } catch (error) {
+          log('❌ 获取存储统计信息错误: ' + error.message, 'error')
+        }
+      }
+
+      // 测试存储
+      async function testStorage() {
+        log('🔧 测试存储连接...', 'info')
+
+        try {
+          const testKey = 'test_' + Date.now()
+          const testValue = { test: true, timestamp: Date.now() }
+
+          // 测试写入
+          const writeResult = await apiCall('/api/state/' + CHATBOT_ID, {
+            method: 'POST',
+            body: JSON.stringify({
+              url: 'https://test.example.com',
+              title: '存储测试页面',
+              customData: testValue
+            })
+          })
+
+          if (writeResult.success) {
+            log('✅ 存储写入测试成功', 'success')
+
+            // 测试读取
+            const readResult = await apiCall('/api/state/' + CHATBOT_ID)
+            if (readResult.success) {
+              log('✅ 存储读取测试成功', 'success')
+              log('✅ 存储连接正常', 'success')
+            } else {
+              log('❌ 存储读取测试失败', 'error')
+            }
+          } else {
+            log('❌ 存储写入测试失败', 'error')
+          }
+
+          showResponse('systemResponse', writeResult)
+        } catch (error) {
+          log('❌ 存储测试失败: ' + error.message, 'error')
+        }
+      }
+
+      // 清空所有存储数据
+      async function clearAllStorageData() {
+        if (!confirm('⚠️ 确定要清空所有存储数据吗？此操作不可撤销！')) {
+          return
+        }
+
+        log('🗑️ 清空所有存储数据...', 'warning')
+
+        try {
+          const result = await apiCall('/api/storage/clear', {
+            method: 'DELETE'
+          })
+
+          if (result.success) {
+            log('✅ 存储数据已清空', 'success')
+            // 刷新统计信息
+            getStorageStats()
+          } else {
+            log('❌ 清空存储数据失败', 'error')
+          }
+
+          showResponse('systemResponse', result)
+        } catch (error) {
+          log('❌ 清空存储失败: ' + error.message, 'error')
         }
     } catch (error) {
         log(\`❌ 从 KV 存储获取键失败: \${error.message}\`, 'error')
@@ -650,14 +795,15 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
         if (connected) {
           indicator.classList.add('connected')
-          status.textContent = '在线'
+          if (status) status.textContent = '在线'
           connectionStartTime = Date.now()
           startConnectionTimer()
         } else {
           indicator.classList.remove('connected')
-          status.textContent = '离线'
+          if (status) status.textContent = '离线'
           stopConnectionTimer()
-          document.getElementById('connectionTime').textContent = '0s'
+          const timeElement = document.getElementById('connectionTime')
+          if (timeElement) timeElement.textContent = '0s'
         }
       }
 
@@ -665,7 +811,8 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         connectionTimer = setInterval(() => {
           if (connectionStartTime) {
             const elapsed = Math.floor((Date.now() - connectionStartTime) / 1000)
-            document.getElementById('connectionTime').textContent = formatTime(elapsed)
+            const timeElement = document.getElementById('connectionTime')
+            if (timeElement) timeElement.textContent = formatTime(elapsed)
           }
         }, 1000)
       }
@@ -683,18 +830,18 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         const secs = seconds % 60
 
         if (hours > 0) {
-          return \`\${hours}h \${minutes}m \${secs}s\`
+          return hours + 'h ' + minutes + 'm ' + secs + 's'
         } else if (minutes > 0) {
-          return \`\${minutes}m \${secs}s\`
+          return minutes + 'm ' + secs + 's'
         } else {
-          return \`\${secs}s\`
+          return secs + 's'
         }
       }
 
       // API 调用函数
       async function apiCall(endpoint, options = {}) {
         try {
-          const response = await fetch(\`\${SERVER_URL}\${endpoint}\`, {
+          const response = await fetch(SERVER_URL + endpoint, {
             headers: {
               'Content-Type': 'application/json',
               ...options.headers
@@ -705,7 +852,7 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
           const data = await response.json()
           return { success: response.ok, data, status: response.status }
         } catch (error) {
-          log(\`API 调用失败: \${error.message}\`, 'error')
+          log('API 调用失败: ' + error.message, 'error')
           return { success: false, error: error.message }
         }
       }
@@ -723,9 +870,9 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         }
 
         log('🔌 正在连接 WebSocket...', 'info')
-        log(\`🤖 使用 ChatBot ID: \${CHATBOT_ID}\`, 'info')
-        const wsUrl = \`\${WS_URL}/ws/connect/\${CHATBOT_ID}\`
-        log(\`🌐 连接地址: \${wsUrl}\`, 'info')
+        log('🤖 使用 ChatBot ID: ' + CHATBOT_ID, 'info')
+        const wsUrl = WS_URL + '/ws/connect/' + CHATBOT_ID
+        log('🌐 连接地址: ' + wsUrl, 'info')
 
         websocket = new WebSocket(wsUrl)
 
@@ -737,22 +884,22 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         websocket.onmessage = function(event) {
           try {
             const message = JSON.parse(event.data)
-            log(\`📨 收到 WebSocket 消息: \${message.type}\`, 'info')
+            log('📨 收到 WebSocket 消息: ' + message.type, 'info')
 
             if (message.type === 'action') {
-              log(\`🎯 通过 WebSocket 收到 Action: \${JSON.stringify(message.data)}\`, 'success')
+              log('🎯 通过 WebSocket 收到 Action: ' + JSON.stringify(message.data), 'success')
               handleReceivedAction(message.data)
             } else if (message.type === 'welcome') {
-              log(\`🎉 WebSocket 连接欢迎消息\`, 'success')
+              log('🎉 WebSocket 连接欢迎消息', 'success')
               // 如果欢迎消息提示检查队列，立即执行一次轮询
               if (message.data && message.data.checkQueue) {
-                log(\`🔍 检查队列中的待处理 Actions...\`, 'info')
+                log('🔍 检查队列中的待处理 Actions...', 'info')
                 setTimeout(() => {
                   checkQueuedActions()
                 }, 500) // 延迟500ms确保连接稳定
               }
             } else if (message.type === 'heartbeat') {
-              log(\`💓 收到心跳\`, 'info')
+              log('💓 收到心跳', 'info')
               // 回复心跳
               websocket.send(JSON.stringify({
                 type: 'heartbeat',
@@ -760,20 +907,20 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
                 timestamp: Date.now()
               }))
             } else if (message.type === 'pong') {
-              log(\`🏓 收到 pong 响应\`, 'info')
+              log('🏓 收到 pong 响应', 'info')
             }
           } catch (error) {
-            log(\`消息解析错误: \${error.message}\`, 'error')
+            log('消息解析错误: ' + error.message, 'error')
           }
         }
 
         websocket.onclose = function(event) {
-          log(\`❌ WebSocket 连接关闭: \${event.code}\`, 'warning')
+          log('❌ WebSocket 连接关闭: ' + event.code, 'warning')
           updateConnectionStatus(false)
         }
 
         websocket.onerror = function(error) {
-          log(\`❌ WebSocket 错误: \${error}\`, 'error')
+          log('❌ WebSocket 错误: ' + error, 'error')
           updateConnectionStatus(false)
         }
       }
@@ -814,8 +961,8 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED']
         const state = states[websocket.readyState] || 'UNKNOWN'
 
-        log(\`🔍 WebSocket 状态: \${state} (\${websocket.readyState})\`, 'info')
-        log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+        log('🔍 WebSocket 状态: ' + state + ' (' + websocket.readyState + ')', 'info')
+        log('🤖 当前 ChatBot ID: ' + CHATBOT_ID, 'info')
 
         // 检查服务器端连接状态
         checkServerConnectionStatus()
@@ -829,238 +976,36 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
             const myConnection = connections.find(conn => conn.chatbotId === CHATBOT_ID)
 
             if (myConnection) {
-              log(\`✅ 服务器端找到连接: \${CHATBOT_ID}\`, 'success')
+              log('✅ 服务器端找到连接: ' + CHATBOT_ID, 'success')
             } else {
-              log(\`❌ 服务器端未找到连接: \${CHATBOT_ID}\`, 'error')
-              log(\`📋 服务器端连接列表: \${connections.map(c => c.chatbotId).join(', ')}\`, 'info')
+              log('❌ 服务器端未找到连接: ' + CHATBOT_ID, 'error')
+              log('📋 服务器端连接列表: ' + connections.map(c => c.chatbotId).join(', '), 'info')
             }
           }
         } catch (error) {
-          log(\`❌ 检查服务器连接状态失败: \${error.message}\`, 'error')
+          log('❌ 检查服务器连接状态失败: ' + error.message, 'error')
         }
-      }
-
-      // 获取所有 KV 键
-      async function getAllKVKeys() {
-        log('� 获取所有 KV 键...', 'info')
-
-        try {
-          const result = await apiCall('/api/kv/stats')
-
-          if (result.success && result.data.data) {
-            const data = result.data.data
-            const keys = data.keys || []
-
-            // 更新统计信息
-            document.getElementById('kvKeysCount').textContent = data.totalKeys || keys.length
-            document.getElementById('kvPrefix').textContent = data.prefix || 'edge-sync'
-            document.getElementById('kvTtl').textContent = data.ttl ? \`\${data.ttl}s\` : '3600s'
-            document.getElementById('kvLastUpdate').textContent = new Date().toLocaleTimeString()
-
-            // 显示键列表
-            const keysDisplay = document.getElementById('kvKeysDisplay')
-            if (keys.length > 0) {
-              let keysHtml = '<strong>KV 键列表:</strong><br>'
-
-              // 按类型分组显示
-              const pageStateKeys = keys.filter(key => key.startsWith('page_state:'))
-              const actionQueueKeys = keys.filter(key => key.startsWith('action_queue:'))
-              const otherKeys = keys.filter(key => !key.startsWith('page_state:') && !key.startsWith('action_queue:'))
-
-              if (pageStateKeys.length > 0) {
-                keysHtml += \`<br><strong>📄 页面状态键 (\${pageStateKeys.length}):</strong><br>\`
-                pageStateKeys.forEach(key => {
-                  const chatbotId = key.replace('page_state:', '')
-                  keysHtml += \`<span style="font-family: monospace; color: #2196f3; margin-left: 10px;">\${key}</span> → ChatBot: <strong>\${chatbotId}</strong><br>\`
-                })
-              }
-
-              if (actionQueueKeys.length > 0) {
-                keysHtml += \`<br><strong>⚡ Action 队列键 (\${actionQueueKeys.length}):</strong><br>\`
-                actionQueueKeys.forEach(key => {
-                  const chatbotId = key.replace('action_queue:', '')
-                  keysHtml += \`<span style="font-family: monospace; color: #ff9800; margin-left: 10px;">\${key}</span> → ChatBot: <strong>\${chatbotId}</strong><br>\`
-                })
-              }
-
-              if (otherKeys.length > 0) {
-                keysHtml += \`<br><strong>🔧 其他键 (\${otherKeys.length}):</strong><br>\`
-                otherKeys.forEach(key => {
-                  keysHtml += \`<span style="font-family: monospace; color: #666; margin-left: 10px;">\${key}</span><br>\`
-                })
-              }
-
-              keysDisplay.innerHTML = keysHtml
-              keysDisplay.style.display = 'block'
-
-              log(\`✅ 获取到 \${keys.length} 个 KV 键\`, 'success')
-            } else {
-              keysDisplay.innerHTML = '<strong>📭 KV 存储为空</strong>'
-              keysDisplay.style.display = 'block'
-              log('📭 KV 存储中没有数据', 'info')
-            }
-          } else {
-            log('❌ 获取 KV 键失败', 'error')
-          }
-
-          showResponse('systemResponse', result)
-        } catch (error) {
-          log(\`❌ 获取 KV 键错误: \${error.message}\`, 'error')
-        }
-      }
-
-      // 获取 KV 存储统计信息
-      async function getKVStats() {
-        log('📊 获取 KV 存储统计信息...', 'info')
-
-        try {
-          const result = await apiCall('/api/kv/stats')
-
-          if (result.success && result.data.data) {
-            const data = result.data.data
-
-            // 更新统计信息显示
-            document.getElementById('kvKeysCount').textContent = data.totalKeys || 0
-            document.getElementById('kvPrefix').textContent = data.prefix || 'edge-sync'
-            document.getElementById('kvTtl').textContent = data.ttl ? \`\${data.ttl}s\` : '3600s'
-            document.getElementById('kvLastUpdate').textContent = new Date().toLocaleTimeString()
-
-            log(\`✅ KV 统计信息获取成功\`, 'success')
-            log(\`📊 总键数: \${data.totalKeys || 0}\`, 'info')
-            log(\`🏷️ 键前缀: \${data.prefix || 'edge-sync'}\`, 'info')
-            log(\`⏰ 默认 TTL: \${data.ttl || 3600}s\`, 'info')
-          } else {
-            log('❌ 获取 KV 统计信息失败', 'error')
-          }
-
-          showResponse('systemResponse', result)
-        } catch (error) {
-          log(\`❌ 获取 KV 统计信息错误: \${error.message}\`, 'error')
-        }
-      }
-
-      // 清空所有 KV 数据
-      async function clearAllKVData() {
-        if (!confirm('⚠️ 确定要清空所有 KV 数据吗？此操作不可恢复！')) {
-          log('❌ 用户取消了清空 KV 数据操作', 'warning')
-          return
-        }
-
-        log('🗑️ 清空所有 KV 数据...', 'warning')
-
-        try {
-          const result = await apiCall('/api/kv/clear', {
-            method: 'DELETE'
-          })
-
-          if (result.success) {
-            // 更新统计信息显示
-            document.getElementById('kvKeysCount').textContent = '0'
-            document.getElementById('kvLastUpdate').textContent = new Date().toLocaleTimeString()
-
-            // 清空键列表显示
-            const keysDisplay = document.getElementById('kvKeysDisplay')
-            keysDisplay.innerHTML = '<strong>📭 KV 存储已清空</strong>'
-            keysDisplay.style.display = 'block'
-
-            log('✅ 所有 KV 数据已清空', 'success')
-            log('💡 建议刷新 ChatBot ID 列表', 'info')
-          } else {
-            log('❌ 清空 KV 数据失败', 'error')
-          }
-
-          showResponse('systemResponse', result)
-        } catch (error) {
-          log(\`❌ 清空 KV 数据错误: \${error.message}\`, 'error')
-        }
-      }
-
-      // 系统状态
-      async function getSystemStatus() {
-        log('📊 获取系统状态...', 'info')
-        const result = await apiCall('/admin/status')
-
-        if (result.success && result.data.data) {
-          const data = result.data.data
-          const totalConnections = data.connections?.totalConnections || data.connections?.total || 0
-          document.getElementById('totalConnections').textContent = totalConnections
-          document.getElementById('serverEnvironment').textContent = data.environment || 'Unknown'
-
-          // 获取根路径信息来显示缓存类型
-          const rootResult = await apiCall('/')
-          if (rootResult.success && rootResult.data.config) {
-            document.getElementById('cacheType').textContent = rootResult.data.config.cacheType || 'Unknown'
-          }
-
-          log('✅ 系统状态获取成功', 'success')
-        } else {
-          log('❌ 系统状态获取失败', 'error')
-        }
-
-        showResponse('systemResponse', result)
-      }
-
-      // 测试 KV 存储
-      async function testKVStorage() {
-        log('🔧 测试 KV 存储...', 'info')
-
-        // 测试设置和获取数据
-        const testValue = { message: 'KV 存储测试', timestamp: Date.now() }
-
-        // 设置测试数据
-        const setResult = await apiCall(\`/api/state/\${CHATBOT_ID}\`, {
-          method: 'POST',
-          body: JSON.stringify({
-            url: 'https://kv-test.example.com',
-            title: 'KV 存储测试',
-            timestamp: Date.now(),
-            customData: testValue
-          })
-        })
-
-        if (setResult.success) {
-          log('✅ KV 数据写入成功', 'success')
-
-          // 获取测试数据
-          const getResult = await apiCall(\`/api/state/\${CHATBOT_ID}\`)
-
-          if (getResult.success && getResult.data.data) {
-            log('✅ KV 数据读取成功', 'success')
-            log(\`📄 读取的数据: \${JSON.stringify(getResult.data.data.customData)}\`, 'info')
-          } else {
-            log('❌ KV 数据读取失败', 'error')
-          }
-        } else {
-          log('❌ KV 数据写入失败', 'error')
-        }
-
-        showResponse('systemResponse', setResult)
       }
 
       // 页面状态管理
       async function updatePageState() {
-        if (!validateChatbotId()) {
+        const url = document.getElementById('pageUrl').value
+        const title = document.getElementById('pageTitle').value
+        let customData = {}
+
+        try {
+          customData = JSON.parse(document.getElementById('customData').value)
+        } catch (error) {
+          log('❌ 自定义数据 JSON 格式错误', 'error')
           return
         }
 
-        const url = document.getElementById('pageUrl').value
-        const title = document.getElementById('pageTitle').value
-        const customDataText = document.getElementById('customData').value
+        log('💾 更新页面状态: ' + CHATBOT_ID, 'info')
 
         try {
-          const customData = JSON.parse(customDataText)
-
-          log('💾 更新页面状态...', 'info')
-          log(\`🤖 使用 ChatBot ID: \${CHATBOT_ID}\`, 'info')
-
-          const result = await apiCall(\`/api/state/\${CHATBOT_ID}\`, {
+          const result = await apiCall('/api/state/' + CHATBOT_ID, {
             method: 'POST',
-            body: JSON.stringify({
-              url,
-              title,
-              timestamp: Date.now(),
-              customData
-            })
+            body: JSON.stringify({ url, title, customData })
           })
 
           if (result.success) {
@@ -1071,258 +1016,188 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
 
           showResponse('pageStateResponse', result)
         } catch (error) {
-          log(\`❌ 自定义数据 JSON 格式错误: \${error.message}\`, 'error')
+          log('❌ 更新页面状态错误: ' + error.message, 'error')
         }
       }
 
       async function getPageState() {
-        if (!validateChatbotId()) {
-          return
-        }
+        log('📖 获取页面状态: ' + CHATBOT_ID, 'info')
 
-        log('📖 获取页面状态...', 'info')
-        log(\`🤖 使用 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+        try {
+          const result = await apiCall('/api/state/' + CHATBOT_ID)
 
-        const result = await apiCall(\`/api/state/\${CHATBOT_ID}\`)
-
-        if (result.success) {
-          if (result.data.data) {
+          if (result.success && result.data.data) {
+            const data = result.data.data
             log('✅ 页面状态获取成功', 'success')
-            log(\`📄 状态数据: \${JSON.stringify(result.data.data, null, 2)}\`, 'info')
-          } else {
-            log('ℹ️ 没有找到页面状态数据', 'warning')
-          }
-        } else {
-          log('❌ 页面状态获取失败', 'error')
-        }
+            log('📄 URL: ' + data.url, 'info')
+            log('📝 标题: ' + data.title, 'info')
+            log('📊 自定义数据: ' + JSON.stringify(data.customData), 'info')
 
-        showResponse('pageStateResponse', result)
+            // 填充表单
+            document.getElementById('pageUrl').value = data.url || ''
+            document.getElementById('pageTitle').value = data.title || ''
+            document.getElementById('customData').value = JSON.stringify(data.customData || {}, null, 2)
+          } else {
+            log('❌ 页面状态获取失败或不存在', 'error')
+          }
+
+          showResponse('pageStateResponse', result)
+        } catch (error) {
+          log('❌ 获取页面状态错误: ' + error.message, 'error')
+        }
       }
 
       async function deletePageState() {
-        if (!validateChatbotId()) {
+        if (!confirm('确定要删除 ChatBot ID "' + CHATBOT_ID + '" 的页面状态吗？')) {
           return
         }
 
-        log('🗑️ 删除页面状态...', 'info')
-        log(\`🤖 使用 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+        log('🗑️ 删除页面状态: ' + CHATBOT_ID, 'warning')
 
-        const result = await apiCall(\`/api/state/\${CHATBOT_ID}\`, {
-          method: 'DELETE'
-        })
+        try {
+          const result = await apiCall('/api/state/' + CHATBOT_ID, {
+            method: 'DELETE'
+          })
 
-        if (result.success) {
-          log('✅ 页面状态删除成功', 'success')
-        } else {
-          log('❌ 页面状态删除失败', 'error')
+          if (result.success) {
+            log('✅ 页面状态删除成功', 'success')
+          } else {
+            log('❌ 页面状态删除失败', 'error')
+          }
+
+          showResponse('pageStateResponse', result)
+        } catch (error) {
+          log('❌ 删除页面状态错误: ' + error.message, 'error')
         }
-
-        showResponse('pageStateResponse', result)
       }
 
       // Action 推送
       async function sendCustomAction() {
-        if (!validateChatbotId()) {
-          return
-        }
-
         const type = document.getElementById('actionType').value
         const target = document.getElementById('actionTarget').value
-        const payloadText = document.getElementById('actionPayload').value
+        let payload = {}
 
         try {
-          const payload = JSON.parse(payloadText)
-
-          log(\`🚀 发送 \${type} Action...\`, 'info')
-          log(\`🤖 目标 ChatBot ID: \${CHATBOT_ID}\`, 'info')
-
-          const result = await apiCall(\`/api/action/\${CHATBOT_ID}\`, {
-            method: 'POST',
-            body: JSON.stringify({
-              type,
-              target,
-              payload
-            })
-          })
-
-          if (result.success) {
-            log(\`✅ Action 发送成功: \${type}\`, 'success')
-          } else {
-            log(\`❌ Action 发送失败: \${type}\`, 'error')
-          }
-
-          showResponse('actionResponse', result)
+          payload = JSON.parse(document.getElementById('actionPayload').value)
         } catch (error) {
-          log(\`❌ Action 数据 JSON 格式错误: \${error.message}\`, 'error')
-        }
-      }
-
-      async function sendQuickActions() {
-        if (!validateChatbotId()) {
+          log('❌ Action 数据 JSON 格式错误', 'error')
           return
         }
 
-        log('⚡ 发送快速测试 Actions...', 'info')
-        log(\`🤖 目标 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+        const action = {
+          type,
+          target,
+          payload,
+          timestamp: Date.now()
+        }
 
-        const actions = [
-          { type: 'navigate', payload: { url: 'https://workers.cloudflare.com' } },
-          { type: 'click', target: '#test-button', payload: { message: '点击测试' } },
-          { type: 'input', target: '#test-input', payload: { value: 'Cloudflare Workers 测试' } }
-        ]
+        log('🚀 发送 Action 到 ' + CHATBOT_ID + ': ' + type, 'info')
 
-        for (const action of actions) {
-          const result = await apiCall(\`/api/action/\${CHATBOT_ID}\`, {
+        try {
+          const result = await apiCall('/api/action/' + CHATBOT_ID, {
             method: 'POST',
             body: JSON.stringify(action)
           })
 
           if (result.success) {
-            log(\`✅ 快速 Action 发送成功: \${action.type}\`, 'success')
+            log('✅ Action 发送成功', 'success')
           } else {
-            log(\`❌ 快速 Action 发送失败: \${action.type}\`, 'error')
-          }
-        }
-      }
-
-      async function broadcastAction() {
-        log('⚠️ 广播功能在 Cloudflare Workers 环境中不支持', 'warning')
-        log('💡 这是由于 Cloudflare Workers 的 I/O 隔离限制', 'info')
-        log('🔄 请使用单独的 Action 发送功能', 'info')
-
-        // 仍然尝试调用 API，但会收到不支持的响应
-        const type = document.getElementById('actionType').value
-        const target = document.getElementById('actionTarget').value
-        const payloadText = document.getElementById('actionPayload').value
-
-        try {
-          const payload = JSON.parse(payloadText)
-
-          log(\`📢 尝试广播 \${type} Action (预期会失败)...\`, 'warning')
-
-          const result = await apiCall('/api/action/broadcast', {
-            method: 'POST',
-            body: JSON.stringify({
-              type,
-              target,
-              payload
-            })
-          })
-
-          if (result.success) {
-            log(\`✅ Action 广播成功: \${type}\`, 'success')
-          } else {
-            log(\`❌ Action 广播失败: \${type}\`, 'error')
+            log('❌ Action 发送失败', 'error')
           }
 
           showResponse('actionResponse', result)
         } catch (error) {
-          log(\`❌ Action 数据 JSON 格式错误: \${error.message}\`, 'error')
+          log('❌ 发送 Action 错误: ' + error.message, 'error')
         }
       }
 
-      // 显示响应
-      function showResponse(elementId, result) {
-        const element = document.getElementById(elementId)
-        element.style.display = 'block'
-        element.innerHTML = \`
-          <strong>响应状态:</strong> \${result.success ? '成功' : '失败'}<br>
-          <strong>状态码:</strong> \${result.status || 'N/A'}<br>
-          <strong>响应数据:</strong><br>
-          <pre>\${JSON.stringify(result.data || result.error, null, 2)}</pre>
-        \`
+      async function sendQuickActions() {
+        log('⚡ 发送快速测试 Actions 到 ' + CHATBOT_ID, 'info')
+
+        const quickActions = [
+          {
+            type: 'navigate',
+            target: 'window',
+            payload: { url: '/monitor/esxi' },
+            timestamp: Date.now()
+          },
+          {
+            type: 'click',
+            target: '#cloudflare-test',
+            payload: { message: 'Cloudflare Workers 测试点击' },
+            timestamp: Date.now() + 1000
+          },
+          {
+            type: 'input',
+            target: 'input[type="text"]',
+            payload: { value: 'Cloudflare Workers 输入测试' },
+            timestamp: Date.now() + 2000
+          }
+        ]
+
+        for (const action of quickActions) {
+          try {
+            const result = await apiCall('/api/action/' + CHATBOT_ID, {
+              method: 'POST',
+              body: JSON.stringify(action)
+            })
+
+            if (result.success) {
+              log('✅ 快速 Action 发送成功: ' + action.type, 'success')
+            } else {
+              log('❌ 快速 Action 发送失败: ' + action.type, 'error')
+            }
+          } catch (error) {
+            log('❌ 发送快速 Action 错误: ' + error.message, 'error')
+          }
+
+          // 延迟一下避免过快发送
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
       }
 
-      // Action 轮询功能 - 重构版本
-      let pollingCount = 0
+      function broadcastAction() {
+        log('❌ 广播功能在 Cloudflare Workers 中不支持', 'error')
+      }
 
-      // 启用轮询功能
-      async function enableActionPolling() {
+      // Action 轮询管理
+      function enableActionPolling() {
         if (isPollingEnabled) {
-          log('⚠️ Action 轮询已经启动', 'warning')
-          return
-        }
-
-        if (!validateChatbotId()) {
+          log('⚠️ Action 轮询已经启用', 'warning')
           return
         }
 
         pollingDisabledByDefault = false
         isPollingEnabled = true
-        pollingCount = 0
-        updatePollingStatus()
+        pollingDisabledByDefault = false
+        document.getElementById('pollingStatus').textContent = '已启用'
+        log('⚡ Action 轮询已启用', 'success')
 
-        log('⚡ 启用 Action 轮询功能...', 'success')
-        log(\`🤖 轮询 ChatBot ID: \${CHATBOT_ID}\`, 'info')
+        // 立即执行一次检查
+        checkQueuedActions()
 
-        actionPollingInterval = setInterval(async () => {
-          try {
-            pollingCount++
-            updatePollingStatus()
-
-            const result = await apiCall(\`/api/action/\${CHATBOT_ID}/poll\`)
-
-            if (result.success && result.data && result.data.actions) {
-              const actions = result.data.actions
-
-              if (actions.length > 0) {
-                log(\`📨 轮询到 \${actions.length} 个 Action\`, 'success')
-
-                actions.forEach(action => {
-                  log(\`🎯 收到 Action: \${action.type}\`, 'success')
-                  log(\`📋 目标: \${action.target || 'N/A'}\`, 'info')
-                  log(\`📦 数据: \${JSON.stringify(action.payload || {})}\`, 'info')
-                  log(\`⏰ 时间: \${new Date(action.timestamp || action.queuedAt).toLocaleTimeString()}\`, 'info')
-
-                  // 这里可以添加实际的 Action 处理逻辑
-                  // 例如：执行导航、点击、输入等操作
-                  handleReceivedAction(action)
-                })
-              }
-            } else if (result.success) {
-              // 轮询成功但没有 actions，这是正常的
-              // log('🔄 轮询完成，暂无新 Actions', 'info')
-            } else {
-              log(\`❌ 轮询失败: \${result.error || 'Unknown error'}\`, 'error')
-            }
-          } catch (error) {
-            console.error('Action polling error:', error)
-            log(\`❌ 轮询错误: \${error.message}\`, 'error')
+        // 设置定时轮询
+        actionPollingInterval = setInterval(() => {
+          if (isPollingEnabled) {
+            checkQueuedActions()
           }
-        }, 2000) // 每2秒轮询一次
-
-        log('✅ Action 轮询已启动 (每2秒)', 'success')
+        }, 3000) // 每3秒轮询一次
       }
 
-      function updatePollingStatus() {
-        const statusElement = document.getElementById('pollingStatus')
-        const countElement = document.getElementById('pollingCount')
-
-        if (statusElement) {
-          if (pollingDisabledByDefault && !isPollingEnabled) {
-            statusElement.textContent = '已禁用'
-          } else {
-            statusElement.textContent = isPollingEnabled ? '运行中' : '已停止'
-          }
-        }
-
-        if (countElement) {
-          countElement.textContent = pollingCount.toString()
-        }
-      }
-
-      // 禁用轮询功能
       function disableActionPolling() {
+        if (!isPollingEnabled) {
+          log('⚠️ Action 轮询已经禁用', 'warning')
+          return
+        }
+
+        isPollingEnabled = false
+        document.getElementById('pollingStatus').textContent = '已禁用'
+        log('🛑 Action 轮询已禁用', 'info')
+
         if (actionPollingInterval) {
           clearInterval(actionPollingInterval)
           actionPollingInterval = null
         }
-
-        isPollingEnabled = false
-        pollingDisabledByDefault = true
-        updatePollingStatus()
-        log('🛑 Action 轮询已禁用', 'warning')
-        log('💡 轮询功能已恢复到默认禁用状态', 'info')
       }
 
       function toggleActionPolling() {
@@ -1334,374 +1209,160 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       }
 
       function checkPollingStatus() {
-        const statusText = pollingDisabledByDefault && !isPollingEnabled ? '已禁用' :
-                          isPollingEnabled ? '运行中' : '已停止'
-
-        log(\`📊 Action 轮询状态: \${statusText}\`, 'info')
-        log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
-        log(\`⏱️ 轮询间隔: 2秒\`, 'info')
-        log(\`🔧 默认状态: \${pollingDisabledByDefault ? '禁用' : '启用'}\`, 'info')
-
-        if (isPollingEnabled) {
-          log('💡 轮询模式适用于 Cloudflare Workers 环境', 'info')
-          log('📡 Actions 将通过 KV 存储 + 轮询方式接收', 'info')
-        } else if (pollingDisabledByDefault) {
-          log('⚠️ 轮询功能当前已禁用，需要手动启用', 'warning')
-          log('💡 点击 "启用轮询" 按钮来开始接收 Actions', 'info')
-        } else {
-          log('💡 可以启动轮询来接收 Actions', 'info')
-        }
+        log('📊 轮询状态: ' + (isPollingEnabled ? '已启用' : '已禁用'), 'info')
+        log('🔄 轮询间隔: 3秒', 'info')
+        log('📈 轮询次数: ' + document.getElementById('pollingCount').textContent, 'info')
+        log('⚙️ 默认状态: ' + (pollingDisabledByDefault ? '禁用' : '启用'), 'info')
       }
 
-      // 检查队列中的 Actions（单次检查）
+      function resetPollingSystem() {
+        disableActionPolling()
+        document.getElementById('pollingCount').textContent = '0'
+        pollingDisabledByDefault = true
+        log('🔄 轮询系统已重置', 'info')
+      }
+
+      // 检查队列中的 Actions
       async function checkQueuedActions() {
         try {
-          log('🔍 检查队列中的 Actions...', 'info')
-          const result = await apiCall(\`/api/action/\${CHATBOT_ID}/poll\`)
+          const result = await apiCall('/api/action/' + CHATBOT_ID)
 
-          if (result.success && result.data && result.data.actions) {
-            const actions = result.data.actions
+          if (result.success && result.data.data && result.data.data.length > 0) {
+            const actions = result.data.data
+            log('🔍 发现 ' + actions.length + ' 个待处理 Action', 'success')
 
-            if (actions.length > 0) {
-              log(\`📨 从队列中获取到 \${actions.length} 个 Action\`, 'success')
-
-              actions.forEach(action => {
-                log(\`🎯 队列中的 Action: \${action.type}\`, 'success')
-                handleReceivedAction(action)
-              })
-            } else {
-              log('📭 队列为空', 'info')
-            }
+            actions.forEach((action, index) => {
+              log('📋 Action ' + (index + 1) + ': ' + action.type + ' - ' + JSON.stringify(action.payload), 'info')
+              handleReceivedAction(action)
+            })
           } else {
-            log(\`❌ 检查队列失败: \${result.error || 'Unknown error'}\`, 'error')
+            // 只在手动检查时显示无 Action 的消息
+            if (!isPollingEnabled) {
+              log('📭 队列中没有待处理的 Action', 'info')
+            }
           }
+
+          // 更新轮询计数
+          if (isPollingEnabled) {
+            const currentCount = parseInt(document.getElementById('pollingCount').textContent) || 0
+            document.getElementById('pollingCount').textContent = currentCount + 1
+          }
+
         } catch (error) {
-          log(\`❌ 检查队列错误: \${error.message}\`, 'error')
+          log('❌ 检查队列 Action 错误: ' + error.message, 'error')
         }
       }
 
-      // 清空 Action 队列
       async function clearActionQueue() {
-        try {
-          log('🗑️ 清空 Action 队列...', 'info')
-          // 调用轮询 API 来清空队列
-          const result = await apiCall(\`/api/action/\${CHATBOT_ID}/poll\`)
+        if (!confirm('确定要清空 ChatBot ID "' + CHATBOT_ID + '" 的 Action 队列吗？')) {
+          return
+        }
 
-          if (result.success && result.data && result.data.actions) {
-            const clearedCount = result.data.actions.length
-            if (clearedCount > 0) {
-              log(\`🗑️ 已清空 \${clearedCount} 个待处理的 Actions\`, 'success')
-            } else {
-              log('📭 队列已经为空', 'info')
-            }
+        log('🗑️ 清空 Action 队列: ' + CHATBOT_ID, 'warning')
+
+        try {
+          const result = await apiCall('/api/action/' + CHATBOT_ID, {
+            method: 'DELETE'
+          })
+
+          if (result.success) {
+            log('✅ Action 队列已清空', 'success')
           } else {
-            log(\`❌ 清空队列失败: \${result.error || 'Unknown error'}\`, 'error')
+            log('❌ 清空 Action 队列失败', 'error')
           }
         } catch (error) {
-          log(\`❌ 清空队列错误: \${error.message}\`, 'error')
+          log('❌ 清空 Action 队列错误: ' + error.message, 'error')
         }
       }
 
       // 处理接收到的 Action
       function handleReceivedAction(action) {
-        log(\`🎯 处理 Action: \${action.type}\`, 'success')
+        log('🎯 处理 Action: ' + action.type, 'success')
+        log('📋 目标: ' + action.target, 'info')
+        log('📊 数据: ' + JSON.stringify(action.payload), 'info')
+
+        // 这里可以添加实际的 Action 处理逻辑
+        // 例如：模拟点击、导航、输入等操作
 
         switch (action.type) {
           case 'navigate':
-            if (action.payload && action.payload.url) {
-              log(\`🧭 导航到: \${action.payload.url}\`, 'success')
-              // 在实际应用中，这里会执行页面导航
-              // window.location.href = action.payload.url
-            }
+            log('🧭 模拟导航到: ' + action.payload.url, 'info')
             break
-
           case 'click':
-            if (action.target) {
-              log(\`👆 点击元素: \${action.target}\`, 'success')
-              // 在实际应用中，这里会执行点击操作
-              // document.querySelector(action.target)?.click()
-            }
+            log('👆 模拟点击元素: ' + action.target, 'info')
             break
-
           case 'input':
-            if (action.target && action.payload && action.payload.value) {
-              log(\`⌨️ 输入到 \${action.target}: \${action.payload.value}\`, 'success')
-              // 在实际应用中，这里会执行输入操作
-              // const element = document.querySelector(action.target)
-              // if (element) element.value = action.payload.value
-            }
+            log('⌨️ 模拟输入: ' + action.payload.value, 'info')
             break
-
           case 'scroll':
-            log(\`📜 滚动操作\`, 'success')
-            // 在实际应用中，这里会执行滚动操作
+            log('📜 模拟滚动', 'info')
             break
-
           default:
-            log(\`🔧 自定义 Action: \${action.type}\`, 'info')
-            log(\`📦 Action 数据: \${JSON.stringify(action)}\`, 'info')
-            break
-        }
-
-        // 显示 Action 处理完成
-        log(\`✅ Action 处理完成: \${action.type}\`, 'success')
-      }
-
-      // 重置轮询系统
-      function resetPollingSystem() {
-        log('🔄 重置轮询系统...', 'info')
-
-        // 停止当前轮询
-        if (actionPollingInterval) {
-          clearInterval(actionPollingInterval)
-          actionPollingInterval = null
-        }
-
-        // 重置状态
-        isPollingEnabled = false
-        pollingDisabledByDefault = true
-        pollingCount = 0
-
-        // 更新显示
-        updatePollingStatus()
-
-        log('✅ 轮询系统已重置到默认状态', 'success')
-        log('⚠️ 轮询功能已禁用，需要手动启用', 'warning')
-      }
-
-      // 服务状态管理函数
-      async function startService() {
-        log('🚀 启动服务...', 'info')
-
-        if (!validateChatbotId()) {
-          return
-        }
-
-        // 更新服务状态显示
-        document.getElementById('serviceStatus').textContent = '运行中'
-
-        // 启动轮询（如果需要）
-        if (!isPollingEnabled) {
-          await enableActionPolling()
-        }
-
-        // 刷新 ChatBot ID 列表
-        await refreshChatbotIds()
-
-        log('✅ 服务已启动', 'success')
-        log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
-      }
-
-      async function stopService() {
-        log('🛑 停止服务...', 'info')
-
-        // 更新服务状态显示
-        document.getElementById('serviceStatus').textContent = '已停止'
-
-        // 停止轮询
-        if (isPollingEnabled) {
-          disableActionPolling()
-        }
-
-        log('✅ 服务已停止', 'success')
-      }
-
-      async function testService() {
-        log('🧪 测试服务...', 'info')
-
-        try {
-          // 测试基本 API 连接
-          const healthResult = await apiCall('/api/health')
-          if (healthResult.success) {
-            log('✅ API 健康检查通过', 'success')
-          } else {
-            log('❌ API 健康检查失败', 'error')
-            return
-          }
-
-          // 测试 KV 存储
-          if (validateChatbotId()) {
-            await testKVStorage()
-          }
-
-          // 测试获取 KV 统计信息
-          await getKVStats()
-
-          log('✅ 服务测试完成', 'success')
-        } catch (error) {
-          log(\`❌ 服务测试失败: \${error.message}\`, 'error')
+            log('🔧 自定义 Action: ' + action.type, 'info')
         }
       }
 
-      async function checkServiceStatus() {
-        log('🔍 检查服务状态...', 'info')
+      // 显示响应函数
+      function showResponse(elementId, result) {
+        const element = document.getElementById(elementId)
+        if (!element) return
 
-        try {
-          // 检查 API 状态
-          const healthResult = await apiCall('/api/health')
-          if (healthResult.success) {
-            log('✅ API 服务正常', 'success')
-          } else {
-            log('❌ API 服务异常', 'error')
-          }
+        let html = '<strong>响应结果:</strong><br>'
+        html += '<strong>状态:</strong> ' + (result.success ? '✅ 成功' : '❌ 失败') + '<br>'
 
-          // 检查系统状态
-          await getSystemStatus()
-
-          // 检查轮询状态
-          checkPollingStatus()
-
-          // 检查 ChatBot ID 状态
-          log(\`🤖 当前 ChatBot ID: \${CHATBOT_ID}\`, 'info')
-          log(\`💾 ID 来源: \${loadSavedChatbotId() ? '本地存储' : '新生成'}\`, 'info')
-
-          log('✅ 服务状态检查完成', 'success')
-        } catch (error) {
-          log(\`❌ 服务状态检查失败: \${error.message}\`, 'error')
+        if (result.status) {
+          html += '<strong>HTTP 状态:</strong> ' + result.status + '<br>'
         }
+
+        if (result.data) {
+          html += '<strong>数据:</strong><br>'
+          html += '<pre style="background: #f5f5f5; padding: 8px; border-radius: 4px; font-size: 11px; overflow-x: auto;">' + JSON.stringify(result.data, null, 2) + '</pre>'
+        }
+
+        if (result.error) {
+          html += '<strong>错误:</strong> ' + result.error + '<br>'
+        }
+
+        element.innerHTML = html
+        element.style.display = 'block'
       }
 
-      // 页面加载完成后自动执行
-      window.addEventListener('load', () => {
-        log('🎉 Worker 模式测试页面加载完成 (重构版)', 'success')
-        log('⚠️ 轮询功能默认已禁用，需要手动启用', 'warning')
-        log('💡 在 Cloudflare Workers 环境中，可按需启用 Action 轮询模式', 'info')
-
-        // 自动执行初始化和获取现有 ChatBot ID
+      // 页面加载完成后的初始化
+      document.addEventListener('DOMContentLoaded', function() {
+        // 自动刷新存储键列表
         setTimeout(() => {
-         
-          getSystemStatus()
-         
-
-          // 不再自动启动轮询，需要手动启用
-          log('💡 如需接收 Actions，请点击 "启用轮询" 按钮', 'info')
+          getAllStorageKeys()
         }, 1000)
 
-        // 定期刷新 ChatBot ID 列表（每30秒）
-        setInterval(() => {
-      
-        }, 30000)
+        // 显示当前环境信息
+        log('🌍 当前环境: Cloudflare Workers', 'info')
+        log('💾 存储类型: KV Storage', 'info')
+        log('🔧 模式: Worker 重构版', 'info')
       })
     </script>
   </body>
 </html>`
-
 export function createStaticRoutesForWorker() {
-  const staticApp = new Hono<{ Bindings: CloudflareBindings }>()
+  const app = new Hono<{ Bindings: CloudflareBindings }>()
 
-  // 根路径返回测试仪表板
-  staticApp.get('/', c => {
+  // 静态文件路由
+  app.get('/', c => {
     return c.html(TEST_DASHBOARD_HTML)
   })
 
-  // 测试仪表板路径
-  staticApp.get('/test-dashboard.html', c => {
+  app.get('/test-dashboard.html', c => {
     return c.html(TEST_DASHBOARD_HTML)
   })
 
   // 健康检查
-  staticApp.get('/health', c => {
+  app.get('/health', c => {
     return c.json({
-      success: true,
-      data: {
-        service: 'Static File Server - Worker Mode (Restructured)',
-        environment: 'Cloudflare Workers',
-        status: 'healthy',
-        version: '2.0.0-restructured',
-        features: {
-          polling: 'disabled-by-default',
-          websocket: 'not-supported',
-          mode: 'worker-restructured',
-        },
-      },
-      timestamp: Date.now(),
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: 'cloudflare-workers',
+      version: '2.0.0-worker-refactor',
     })
   })
 
-  // KV 存储统计信息
-  staticApp.get('/api/kv/stats', async c => {
-    try {
-      // 从环境变量获取 KV 存储
-      const kv = c.env?.EDGE_SYNC_KV
-      if (!kv) {
-        return c.json(
-          {
-            success: false,
-            error: 'KV storage not available',
-            timestamp: Date.now(),
-          },
-          500
-        )
-      }
-
-      // 获取所有键
-      const result = await kv.list()
-      const keys = result.keys.map((key: any) => key.name.replace('edge-sync:', ''))
-
-      const stats = {
-        totalKeys: keys.length,
-        prefix: 'edge-sync',
-        ttl: 3600,
-        keys: keys,
-      }
-
-      return c.json({
-        success: true,
-        data: stats,
-        timestamp: Date.now(),
-      })
-    } catch (error) {
-      return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: Date.now(),
-        },
-        500
-      )
-    }
-  })
-
-  // 清空所有 KV 数据
-  staticApp.delete('/api/kv/clear', async c => {
-    try {
-      // 从环境变量获取 KV 存储
-      const kv = c.env?.EDGE_SYNC_KV
-      if (!kv) {
-        return c.json(
-          {
-            success: false,
-            error: 'KV storage not available',
-            timestamp: Date.now(),
-          },
-          500
-        )
-      }
-
-      // 获取所有键并删除
-      const result = await kv.list()
-      const deletePromises = result.keys.map((key: any) => kv.delete(key.name))
-      await Promise.all(deletePromises)
-
-      return c.json({
-        success: true,
-        data: {
-          message: 'All KV data cleared successfully',
-          clearedCount: result.keys.length,
-        },
-        timestamp: Date.now(),
-      })
-    } catch (error) {
-      return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: Date.now(),
-        },
-        500
-      )
-    }
-  })
-
-  return staticApp
+  return app
 }

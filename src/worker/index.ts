@@ -91,10 +91,7 @@ async function initializeServices(env: CloudflareBindings) {
     // 根据环境加载配置
     currentConfig = loadConfig(env)
 
-    // 强制使用 KV
-    currentConfig.cacheType = 'kv'
-
-    // 创建 KV 存储适配器
+    // 创建存储适配器（根据配置决定使用 KV 还是 PostgreSQL）
     storage = await WorkerStorageFactory.create(currentConfig, env)
 
     // 创建同步服务（不需要连接管理器）
@@ -120,7 +117,7 @@ app.get('/', c => {
     environment: 'Cloudflare Workers',
     timestamp: Date.now(),
     config: {
-      cacheType: 'kv',
+      cacheType: config.cacheType,
       cachePrefix: config.cachePrefix,
       cacheTtl: config.cacheTtl,
       corsOrigins: config.corsOrigins,
@@ -264,5 +261,8 @@ app.notFound(c => {
     404
   )
 })
+
+// 导出 Durable Object 类
+export { EdgeSyncDurableObject } from './storage/do'
 
 export default app
