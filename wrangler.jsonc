@@ -26,6 +26,14 @@
       }
     ]
   },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "EdgeSyncDurableObject"
+      ]
+    }
+  ],
   "vars": {
     "CACHE_TYPE": "do",
     "CACHE_PREFIX": "edge-sync",
