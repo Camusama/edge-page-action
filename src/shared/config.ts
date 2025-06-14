@@ -50,7 +50,7 @@ export function loadConfig(env?: any): AppConfig {
 
   const config: AppConfig = {
     cacheType:
-      (envSource.CACHE_TYPE as 'redis' | 'kv' | 'postgres') ||
+      (envSource.CACHE_TYPE as 'redis' | 'kv' | 'postgres' | 'do') ||
       (isCloudflareWorkers() ? 'kv' : 'redis'),
     redisUrl: envSource.REDIS_URL,
     postgresUrl: envSource.PG_DATABASE_URL,
@@ -77,6 +77,10 @@ function validateConfig(config: AppConfig): void {
 
   if (config.cacheType === 'kv' && !isCloudflareWorkers()) {
     console.warn('KV storage is designed for Cloudflare Workers environment')
+  }
+
+  if (config.cacheType === 'do' && !isCloudflareWorkers()) {
+    throw new Error('Durable Objects storage is only available in Cloudflare Workers environment')
   }
 
   if (config.cacheTtl < 0) {

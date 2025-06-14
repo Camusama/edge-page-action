@@ -18,21 +18,25 @@
       "localConnectionString": "postgres://postgres:password@localhost:5432/postgres"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "EDGE_SYNC_DO",
+        "class_name": "EdgeSyncDurableObject"
+      }
+    ]
+  },
   "vars": {
-    "CACHE_TYPE": "postgres",
+    "CACHE_TYPE": "do",
     "CACHE_PREFIX": "edge-sync",
     "CACHE_TTL": "3600",
     "CORS_ORIGINS": "https://dev.marquez.cc,http://devnote.marquez.cc/,http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:8082,http://10.100.129.36:3000,http://10.100.129.36:8082,*"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
-  // "compatibility_flags": [
-  //   "nodejs_compat"
-  // ],
-  // "kv_namespaces": [
-  //   {
-  //     "binding": "MY_KV_NAMESPACE",
-  //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-  //   }
-  // ],
+
   // "r2_buckets": [
   //   {
   //     "binding": "MY_BUCKET",
@@ -49,8 +53,4 @@
   // "ai": {
   //   "binding": "AI"
   // },
-  // "observability": {
-  //   "enabled": true,
-  //   "head_sampling_rate": 1
-  // }
 }

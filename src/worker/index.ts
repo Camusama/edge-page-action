@@ -262,4 +262,7 @@ app.notFound(c => {
   )
 })
 
+// 导出 Durable Object 类
+export { EdgeSyncDurableObject } from './storage/do'
+
 export default app
