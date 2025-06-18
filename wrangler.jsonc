@@ -29,9 +29,7 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": [
-        "EdgeSyncDurableObject"
-      ]
+      "new_sqlite_classes": ["EdgeSyncDurableObject"]
     }
   ],
   "vars": {
@@ -43,8 +41,14 @@
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
-  }
-
+  },
+  "secrets_store_secrets": [
+    {
+      "store_id": "e458e77216af45c89e5da069c3103805",
+      "binding": "SECRET",
+      "secret_name": "d1-rest"
+    }
+  ]
   // "r2_buckets": [
   //   {
   //     "binding": "MY_BUCKET",

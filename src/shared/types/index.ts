@@ -143,6 +143,7 @@ export interface CloudflareBindings {
   EDGE_SYNC_KV: KVNamespace
   HYPERDRIVE?: any // Hyperdrive 绑定用于 PostgreSQL 连接
   EDGE_SYNC_DO?: any // Durable Objects 绑定用于强一致性存储
+  SECRET?: any // Secret Store 绑定用于认证
   REDIS_URL?: string
   PG_DATABASE_URL?: string
   CACHE_PREFIX?: string

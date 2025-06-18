@@ -783,9 +783,6 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
         } catch (error) {
           log('❌ 清空存储失败: ' + error.message, 'error')
         }
-    } catch (error) {
-        log(\`❌ 从 KV 存储获取键失败: \${error.message}\`, 'error')
-    }
 }
 
       // 连接管理
@@ -841,11 +838,18 @@ const TEST_DASHBOARD_HTML = `<!doctype html>
       // API 调用函数
       async function apiCall(endpoint, options = {}) {
         try {
+          const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
+          }
+          
+          // 自动添加 Bearer token（如果有 SERVER_SECRET）
+          if (window.SERVER_SECRET && window.SERVER_SECRET.trim() !== '') {
+            headers['Authorization'] = 'Bearer ' + window.SERVER_SECRET
+          }
+          
           const response = await fetch(SERVER_URL + endpoint, {
-            headers: {
-              'Content-Type': 'application/json',
-              ...options.headers
-            },
+            headers,
             ...options
           })
 
@@ -1346,12 +1350,48 @@ export function createStaticRoutesForWorker() {
   const app = new Hono<{ Bindings: CloudflareBindings }>()
 
   // 静态文件路由
-  app.get('/', c => {
-    return c.html(TEST_DASHBOARD_HTML)
+  app.get('/', async c => {
+    let html = TEST_DASHBOARD_HTML
+    
+    // 动态注入 SECRET 值
+    let secretValue = ''
+    if (c.env.SECRET) {
+      try {
+        secretValue = await c.env.SECRET.get() || ''
+      } catch (error) {
+        console.warn('Failed to get SECRET for dashboard:', error)
+      }
+    }
+    
+    // 在 HTML 中注入 SECRET 值
+    html = html.replace(
+      'log(\'🔧 模式: Worker 重构版\', \'info\')',
+      `log('🔧 模式: Worker 重构版', 'info')\n        \n        // 设置服务器端 SECRET\n        window.SERVER_SECRET = '${secretValue.replace(/'/g, "\\'")}'`
+    )
+    
+    return c.html(html)
   })
 
-  app.get('/test-dashboard.html', c => {
-    return c.html(TEST_DASHBOARD_HTML)
+  app.get('/test-dashboard.html', async c => {
+    let html = TEST_DASHBOARD_HTML
+    
+    // 动态注入 SECRET 值
+    let secretValue = ''
+    if (c.env.SECRET) {
+      try {
+        secretValue = await c.env.SECRET.get() || ''
+      } catch (error) {
+        console.warn('Failed to get SECRET for dashboard:', error)
+      }
+    }
+    
+    // 在 HTML 中注入 SECRET 值
+    html = html.replace(
+      'log(\'🔧 模式: Worker 重构版\', \'info\')',
+      `log('🔧 模式: Worker 重构版', 'info')\n        \n        // 设置服务器端 SECRET\n        window.SERVER_SECRET = '${secretValue.replace(/'/g, "\\'")}'`
+    )
+    
+    return c.html(html)
   })
 
   // 健康检查

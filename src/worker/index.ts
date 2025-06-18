@@ -81,6 +81,44 @@ app.use('*', async (c, next) => {
   await next()
 })
 
+// 认证中间件 - 验证 Authorization 头部
+const authMiddleware = async (c: any, next: any) => {
+  const authHeader = c.req.header('Authorization')
+  if (!authHeader) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader
+
+  // 如果配置了 SECRET，则验证 token
+  if (c.env.SECRET) {
+    try {
+      const secret = await c.env.SECRET.get()
+      if (token !== secret) {
+        return c.json({ error: 'Unauthorized' }, 401)
+      }
+    } catch (error) {
+      console.error('Failed to get secret:', error)
+      // 在开发环境中，如果密钥服务不可用，允许通过但记录警告
+      if (process.env.NODE_ENV === 'development' || c.env.ENVIRONMENT === 'development') {
+        console.warn(
+          '⚠️ Development mode: Skipping authentication due to secret service unavailable'
+        )
+        return next()
+      }
+      return c.json({ error: 'Authentication service unavailable' }, 503)
+    }
+  } else {
+    // 如果没有配置 SECRET，在开发环境中允许通过
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️ Development mode: No SECRET configured, skipping authentication')
+      return next()
+    }
+  }
+
+  return next()
+}
+
 // 初始化存储和服务
 let storage: any
 let syncService: SyncService
@@ -147,7 +185,7 @@ app.use('*', async (c, next) => {
 })
 
 // 动态挂载 API 路由
-app.use('/api/*', async c => {
+app.use('/api/*', authMiddleware, async c => {
   if (!syncService) {
     await initializeServices(c.env)
   }
@@ -170,7 +208,7 @@ app.use('/api/*', async c => {
 // WebSocket 功能已移除，改为纯 RESTful API 架构
 
 // 动态挂载管理路由
-app.use('/admin/*', async c => {
+app.use('/admin/*', authMiddleware, async c => {
   if (!syncService) {
     await initializeServices(c.env)
   }

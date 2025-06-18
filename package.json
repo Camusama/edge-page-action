@@ -3,6 +3,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "dev:worker": "wrangler dev",
+    "preview": "wrangler preview",
     "start": "tsx watch src/node/server.ts",
     "start:node": "tsx watch src/node/server.ts",
     "deploy": "wrangler deploy --minify",
